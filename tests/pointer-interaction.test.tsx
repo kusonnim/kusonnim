@@ -11,6 +11,7 @@ import { Neuron } from '../src/components/Neuron';
 import { network } from '../src/data/network';
 import { panLimits, restingRadius } from '../src/utils/geometry';
 import { tactileConfig } from '../src/config/tactile';
+import { palette } from '../src/config/theme';
 import { curvePath, downstreamCurve, quadraticPoint } from '../src/utils/strandGeometry';
 
 let root: Root;
@@ -125,6 +126,69 @@ describe.each(['mouse', 'touch'])('%s pointer interactions', pointerType => {
     expect(simulation.selected).toBe(null);
   });
 
+  it('gives TikCat project ink, hover text, a first-click circular preview, and second-click navigation', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const tikcat = node('neuron-4-4');
+    const point = simulation.byId.get('neuron-4-4')!.base;
+    expect(tikcat.classList.contains('project-neuron')).toBe(true);
+    expect(tikcat.classList.contains('ordinary-neuron')).toBe(false);
+    expect(tikcat.querySelector('[data-ink]')?.getAttribute('fill')).toBe(palette.projectNode);
+    expect(tikcat.querySelector('[data-hover-label]')?.textContent).toBe('TikCat');
+    pointer('pointerover', tikcat, point.x, point.y, pointerType);
+    const renderer = new SvgRenderer(svg, simulation);
+    renderer.draw();
+    if (pointerType === 'mouse') {
+      expect(simulation.hovered).toBe('neuron-4-4');
+      expect(Number(tikcat.querySelector<SVGTextElement>('[data-hover-label]')?.style.opacity)).toBe(1);
+    }
+    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    pointer('pointerup', svg, point.x, point.y, pointerType);
+    expect(simulation.selected).toBe('neuron-4-4');
+    expect(tikcat.getAttribute('aria-expanded')).toBe('true');
+    expect(open).not.toHaveBeenCalled();
+    for (let i = 1; i <= 120; i++) simulation.step(i * 1000 / 60, 1 / 60);
+    renderer.draw();
+    const radius = Number(tikcat.querySelector('[data-ink]')?.getAttribute('r'));
+    expect(radius).toBeGreaterThan(restingRadius());
+    expect(tikcat.querySelector('img')?.getAttribute('src')).toBe('/previews/tikcat.webp');
+    expect(tikcat.querySelector('[data-preview]')?.getAttribute('clip-path')).toBe('url(#preview-neuron-4-4)');
+    expect(Number(tikcat.querySelector('[data-clip]')?.getAttribute('r'))).toBeCloseTo(radius - 0.8);
+    expect(tikcat.querySelector('[data-label]')?.textContent).toBe('TikCat');
+    expect(Number(tikcat.querySelector('[data-label]')?.getAttribute('y'))).toBeGreaterThan(radius);
+    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    pointer('pointerup', svg, point.x, point.y, pointerType);
+    expect(open).toHaveBeenCalledExactlyOnceWith('https://tikcat.vercel.app/', '_blank', 'noopener,noreferrer');
+  });
+
+  it('preserves TikCat long-press charging and never navigates after charging or dragging', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const tikcat = node('neuron-4-4');
+    const point = simulation.byId.get('neuron-4-4')!.base;
+    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    simulation.step(1600, 0.05);
+    expect(simulation.gravityStrength).toBe(0);
+    expect(simulation.connections.grabbedCount).toBe(0);
+    pointer('pointerup', svg, point.x, point.y, pointerType);
+    expect(simulation.selected).toBe(null);
+    expect(simulation.waves).toHaveLength(1);
+    expect(simulation.waves[0].origin).toBe('neuron-4-4');
+    expect(simulation.waves[0].intensity).toBeGreaterThan(0.72);
+    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    pointer('pointerup', svg, point.x, point.y, pointerType);
+    expect(simulation.selected).toBe('neuron-4-4');
+    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    simulation.step(3200, 0.05);
+    pointer('pointerup', svg, point.x, point.y, pointerType);
+    expect(simulation.selected).toBe('neuron-4-4');
+    const waveCount = simulation.waves.length;
+    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    pointer('pointermove', svg, point.x + 50, point.y, pointerType);
+    pointer('pointerup', svg, point.x + 50, point.y, pointerType);
+    expect(simulation.waves).toHaveLength(waveCount);
+    expect(simulation.pan).toEqual({ x: 0, y: 0 });
+    expect(open).not.toHaveBeenCalled();
+  });
+
   it('charges without selecting or navigating, including an already selected project', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     pointer('pointerdown', node(), 400, 200, pointerType);
@@ -191,6 +255,14 @@ describe.each(['mouse', 'touch'])('%s pointer interactions', pointerType => {
     pointer('pointerup', svg, 560, 300, pointerType);
     expect(simulation.waves).toHaveLength(0);
   });
+});
+
+it('retains the established TikCat placeholder if its preview cannot load', () => {
+  const tikcat = node('neuron-4-4');
+  const image = tikcat.querySelector('img')!;
+  act(() => { image.dispatchEvent(new Event('error')); });
+  expect(tikcat.querySelector('.preview-missing')?.textContent).toBe('TikCat');
+  expect(node('neuron-2-2').querySelector('.preview-missing')).toBe(null);
 });
 
 it('ignores a secondary touch while a primary drag is captured', () => {

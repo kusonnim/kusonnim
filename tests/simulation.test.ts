@@ -110,7 +110,7 @@ describe('motion and boundaries', () => {
       const radius = restingRadius(width);
       expect(radius).toBeGreaterThan(width < 600 ? 12 : 15);
       expect(engine.nodes.every(node => node.radius === radius)).toBe(true);
-      expect(engine.nodes.filter(node => node.definition.project)).toHaveLength(8);
+      expect(engine.nodes.filter(node => node.definition.project)).toHaveLength(9);
     }
   });
   it('strengthens both proximity and velocity response without changing damping, then settles', () => {

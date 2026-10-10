@@ -20,21 +20,53 @@ describe('fixed feed-forward network', () => {
     }
   });
 
-  it('preserves all eight assignments and both ordinary terminal neurons', () => {
+  it('preserves all eight original assignments, adds TikCat at 4/4, and keeps ordinary terminals', () => {
     const assignments = Object.fromEntries(network.neurons.filter(node => node.project).map(node => [node.project!.id, [node.layer, node.row]]));
     expect(assignments).toEqual({
       'program-roulette': [1, 4], 'chararak-pdf': [2, 2], 'chararak-read': [2, 4],
       'rsvp-reader': [2, 5], 'just-in-case': [3, 1], 'tilt-sweeper': [3, 2],
-      'burn-word': [3, 3], 'autumn-string': [4, 2],
+      'burn-word': [3, 3], 'autumn-string': [4, 2], 'tikcat': [4, 4],
     });
-    expect(network.neurons.filter(node => !node.project)).toHaveLength(14);
+    expect(network.neurons.filter(node => node.project)).toHaveLength(9);
+    expect(network.neurons.filter(node => !node.project)).toHaveLength(13);
     expect(network.neurons.filter(node => node.layer === 0 || node.layer === 5).every(node => !node.project)).toBe(true);
+  });
+
+  it('preserves the exact URLs of all eight original projects', () => {
+    const urls = Object.fromEntries(projects.filter(project => project.id !== 'tikcat').map(project => [project.id, project.url]));
+    expect(urls).toEqual({
+      'rsvp-reader': 'https://kusonnim.github.io/RSVP_Reader/',
+      'tilt-sweeper': 'https://kusonnim.github.io/tiltSweeper/',
+      'chararak-read': 'https://chararak-read.vercel.app/',
+      'chararak-pdf': 'https://chararak-pdf.vercel.app/',
+      'burn-word': 'https://burn-word.vercel.app/',
+      'just-in-case': 'https://just-in-case-tau.vercel.app/',
+      'autumn-string': 'https://autumn-string.vercel.app/',
+      'program-roulette': 'https://program-roulette.vercel.app/',
+    });
+  });
+
+  it('assigns TikCat to the requested neuron and static WebP preview path', () => {
+    expect(network.neurons.find(node => node.id === 'neuron-4-4')?.project).toMatchObject({
+      id: 'tikcat', name: 'TikCat', url: 'https://tikcat.vercel.app/', layer: 4, row: 4, preview: '/previews/tikcat.webp',
+    });
+  });
+
+  it('changes only the 4/4 project assignment and leaves every neuron position and connection unchanged', () => {
+    const original = createNetwork(projects.filter(project => project.id !== 'tikcat'));
+    expect(network.edges).toEqual(original.edges);
+    expect(network.neurons.map(({ id, layer, row }) => ({ id, layer, row }))).toEqual(
+      original.neurons.map(({ id, layer, row }) => ({ id, layer, row })),
+    );
+    for (const node of original.neurons) {
+      if (node.id !== 'neuron-4-4') expect(network.neurons.find(current => current.id === node.id)).toEqual(node);
+    }
   });
 
   it('supports additions without reshuffling and rejects occupied or invalid positions', () => {
     const extra = { id: 'new-world', name: 'New World', url: 'https://example.com', preview: '/previews/new-world.webp', layer: 1, row: 1 };
     const extended = createNetwork([...projects, extra]);
-    expect(extended.neurons.filter(node => node.project)).toHaveLength(9);
+    expect(extended.neurons.filter(node => node.project)).toHaveLength(10);
     for (const project of projects) expect(extended.neurons.find(node => node.project?.id === project.id)?.project).toEqual(project);
     expect(() => createNetwork([...projects, { ...extra, layer: 2, row: 2 }])).toThrow('occupied');
     expect(() => createNetwork([{ ...extra, layer: 0 }])).toThrow('hidden');

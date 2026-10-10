@@ -68,12 +68,18 @@ These instructions are documentation only; they do not appear in the interface.
 
 ## Preview assets
 
-All eight supplied project URLs were visited and their actual screens
+The original eight project URLs were visited and their actual screens
 captured on October 10, 2026. The screenshots are stored under `public/previews/`
 as `.jpg`, the browser's native screenshot format. They preserve the original
 project colors; they are not generated mockups. Some show the project's initial
 empty state before a visitor supplies a file or text. Autumn String was captured
 after a few interactions with its threads to show the artwork more clearly.
+
+The ninth project, TikCat, occupies hidden layer 4, row 4. Its actual generated
+cat-petting ticket view was captured on October 10, 2026 and encoded as
+`public/previews/tikcat.webp`. All eight original positions, URLs, and preview
+assets are preserved. TikCat uses the same hover, circular preview, navigation,
+and charging behavior as every other project neuron.
 
 Replace these files with updated screenshots, or change the corresponding
 `preview` path in `src/data/projects.ts` to a WebP/PNG asset. Each project's `focus`
