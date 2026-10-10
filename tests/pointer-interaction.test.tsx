@@ -19,6 +19,11 @@ let container: HTMLDivElement;
 let svg: SVGSVGElement;
 let simulation: NetworkSimulation;
 
+const addedProjects = [
+  { id: 'neuron-4-4', name: 'TikCat', url: 'https://tikcat.vercel.app/', preview: '/previews/tikcat.webp' },
+  { id: 'neuron-1-2', name: 'My Fan', url: 'https://my-fan-two.vercel.app/', preview: '/previews/my-fan.webp' },
+];
+
 function Harness() {
   const ref = createRef<SVGSVGElement>();
   const interaction = usePointerInteraction(simulation, ref);
@@ -126,62 +131,62 @@ describe.each(['mouse', 'touch'])('%s pointer interactions', pointerType => {
     expect(simulation.selected).toBe(null);
   });
 
-  it('gives TikCat project ink, hover text, a first-click circular preview, and second-click navigation', () => {
+  it.each(addedProjects)('gives $name project ink, hover text, a first-click circular preview, and second-click navigation', ({ id, name, url, preview }) => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    const tikcat = node('neuron-4-4');
-    const point = simulation.byId.get('neuron-4-4')!.base;
-    expect(tikcat.classList.contains('project-neuron')).toBe(true);
-    expect(tikcat.classList.contains('ordinary-neuron')).toBe(false);
-    expect(tikcat.querySelector('[data-ink]')?.getAttribute('fill')).toBe(palette.projectNode);
-    expect(tikcat.querySelector('[data-hover-label]')?.textContent).toBe('TikCat');
-    pointer('pointerover', tikcat, point.x, point.y, pointerType);
+    const projectNode = node(id);
+    const point = simulation.byId.get(id)!.base;
+    expect(projectNode.classList.contains('project-neuron')).toBe(true);
+    expect(projectNode.classList.contains('ordinary-neuron')).toBe(false);
+    expect(projectNode.querySelector('[data-ink]')?.getAttribute('fill')).toBe(palette.projectNode);
+    expect(projectNode.querySelector('[data-hover-label]')?.textContent).toBe(name);
+    pointer('pointerover', projectNode, point.x, point.y, pointerType);
     const renderer = new SvgRenderer(svg, simulation);
     renderer.draw();
     if (pointerType === 'mouse') {
-      expect(simulation.hovered).toBe('neuron-4-4');
-      expect(Number(tikcat.querySelector<SVGTextElement>('[data-hover-label]')?.style.opacity)).toBe(1);
+      expect(simulation.hovered).toBe(id);
+      expect(Number(projectNode.querySelector<SVGTextElement>('[data-hover-label]')?.style.opacity)).toBe(1);
     }
-    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    pointer('pointerdown', projectNode, point.x, point.y, pointerType);
     pointer('pointerup', svg, point.x, point.y, pointerType);
-    expect(simulation.selected).toBe('neuron-4-4');
-    expect(tikcat.getAttribute('aria-expanded')).toBe('true');
+    expect(simulation.selected).toBe(id);
+    expect(projectNode.getAttribute('aria-expanded')).toBe('true');
     expect(open).not.toHaveBeenCalled();
     for (let i = 1; i <= 120; i++) simulation.step(i * 1000 / 60, 1 / 60);
     renderer.draw();
-    const radius = Number(tikcat.querySelector('[data-ink]')?.getAttribute('r'));
+    const radius = Number(projectNode.querySelector('[data-ink]')?.getAttribute('r'));
     expect(radius).toBeGreaterThan(restingRadius());
-    expect(tikcat.querySelector('img')?.getAttribute('src')).toBe('/previews/tikcat.webp');
-    expect(tikcat.querySelector('[data-preview]')?.getAttribute('clip-path')).toBe('url(#preview-neuron-4-4)');
-    expect(Number(tikcat.querySelector('[data-clip]')?.getAttribute('r'))).toBeCloseTo(radius - 0.8);
-    expect(tikcat.querySelector('[data-label]')?.textContent).toBe('TikCat');
-    expect(Number(tikcat.querySelector('[data-label]')?.getAttribute('y'))).toBeGreaterThan(radius);
-    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    expect(projectNode.querySelector('img')?.getAttribute('src')).toBe(preview);
+    expect(projectNode.querySelector('[data-preview]')?.getAttribute('clip-path')).toBe(`url(#preview-${id})`);
+    expect(Number(projectNode.querySelector('[data-clip]')?.getAttribute('r'))).toBeCloseTo(radius - 0.8);
+    expect(projectNode.querySelector('[data-label]')?.textContent).toBe(name);
+    expect(Number(projectNode.querySelector('[data-label]')?.getAttribute('y'))).toBeGreaterThan(radius);
+    pointer('pointerdown', projectNode, point.x, point.y, pointerType);
     pointer('pointerup', svg, point.x, point.y, pointerType);
-    expect(open).toHaveBeenCalledExactlyOnceWith('https://tikcat.vercel.app/', '_blank', 'noopener,noreferrer');
+    expect(open).toHaveBeenCalledExactlyOnceWith(url, '_blank', 'noopener,noreferrer');
   });
 
-  it('preserves TikCat long-press charging and never navigates after charging or dragging', () => {
+  it.each(addedProjects)('preserves $name long-press charging and never navigates after charging or dragging', ({ id }) => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
-    const tikcat = node('neuron-4-4');
-    const point = simulation.byId.get('neuron-4-4')!.base;
-    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    const projectNode = node(id);
+    const point = simulation.byId.get(id)!.base;
+    pointer('pointerdown', projectNode, point.x, point.y, pointerType);
     simulation.step(1600, 0.05);
     expect(simulation.gravityStrength).toBe(0);
     expect(simulation.connections.grabbedCount).toBe(0);
     pointer('pointerup', svg, point.x, point.y, pointerType);
     expect(simulation.selected).toBe(null);
     expect(simulation.waves).toHaveLength(1);
-    expect(simulation.waves[0].origin).toBe('neuron-4-4');
+    expect(simulation.waves[0].origin).toBe(id);
     expect(simulation.waves[0].intensity).toBeGreaterThan(0.72);
-    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    pointer('pointerdown', projectNode, point.x, point.y, pointerType);
     pointer('pointerup', svg, point.x, point.y, pointerType);
-    expect(simulation.selected).toBe('neuron-4-4');
-    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    expect(simulation.selected).toBe(id);
+    pointer('pointerdown', projectNode, point.x, point.y, pointerType);
     simulation.step(3200, 0.05);
     pointer('pointerup', svg, point.x, point.y, pointerType);
-    expect(simulation.selected).toBe('neuron-4-4');
+    expect(simulation.selected).toBe(id);
     const waveCount = simulation.waves.length;
-    pointer('pointerdown', tikcat, point.x, point.y, pointerType);
+    pointer('pointerdown', projectNode, point.x, point.y, pointerType);
     pointer('pointermove', svg, point.x + 50, point.y, pointerType);
     pointer('pointerup', svg, point.x + 50, point.y, pointerType);
     expect(simulation.waves).toHaveLength(waveCount);
@@ -257,11 +262,11 @@ describe.each(['mouse', 'touch'])('%s pointer interactions', pointerType => {
   });
 });
 
-it('retains the established TikCat placeholder if its preview cannot load', () => {
-  const tikcat = node('neuron-4-4');
-  const image = tikcat.querySelector('img')!;
+it.each(addedProjects)('retains the established $name placeholder if its preview cannot load', ({ id, name }) => {
+  const projectNode = node(id);
+  const image = projectNode.querySelector('img')!;
   act(() => { image.dispatchEvent(new Event('error')); });
-  expect(tikcat.querySelector('.preview-missing')?.textContent).toBe('TikCat');
+  expect(projectNode.querySelector('.preview-missing')?.textContent).toBe(name);
   expect(node('neuron-2-2').querySelector('.preview-missing')).toBe(null);
 });
 

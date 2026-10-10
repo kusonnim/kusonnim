@@ -81,6 +81,11 @@ cat-petting ticket view was captured on October 10, 2026 and encoded as
 assets are preserved. TikCat uses the same hover, circular preview, navigation,
 and charging behavior as every other project neuron.
 
+The tenth project, My Fan, occupies hidden layer 1, row 2. Its actual fan view
+was captured on October 10, 2026 and encoded as `public/previews/my-fan.webp`,
+with crop focus set to keep the fan centered in the circular preview. All nine
+previous project assignments and URLs, including TikCat at 4/4, are preserved.
+
 Replace these files with updated screenshots, or change the corresponding
 `preview` path in `src/data/projects.ts` to a WebP/PNG asset. Each project's `focus`
 uses normalized x/y values for the image's CSS `object-position`. Missing images
