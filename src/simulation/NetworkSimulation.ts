@@ -4,7 +4,7 @@ import { network } from '../data/network';
 import type { EdgeDefinition, Gesture, NeuronState, Point } from '../types/network';
 import { chargeAt } from '../utils/gesture';
 import { clamp, constrainPan, keepPreviewVisible, layoutPosition, lerp, limitVector, previewRadius, restingRadius, smoothFactor } from '../utils/geometry';
-import { createConnectionSignal, createSignal, signalFinished } from '../utils/signal';
+import { createConnectionSignal, createSignal, signalArrival, signalFinished } from '../utils/signal';
 import type { SignalWave } from '../utils/signal';
 import { ConnectionInteraction } from './ConnectionInteraction';
 import { projectToSegment } from '../utils/strandGeometry';
@@ -30,7 +30,7 @@ export class NetworkSimulation {
     gravityOffset: { x: 0, y: 0 }, strandOffset: { x: 0, y: 0 },
   }));
   byId = new Map(this.nodes.map(node => [node.definition.id, node]));
-  connections = new ConnectionInteraction(this.byId, edge => this.emitConnection(edge));
+  connections = new ConnectionInteraction(this.byId, (edge, contactFraction) => this.emitConnection(edge, contactFraction));
 
   resize(width: number, height: number, initial = false) {
     this.width = width;
@@ -52,19 +52,25 @@ export class NetworkSimulation {
     this.queueWave(wave);
   }
 
-  emitConnection(edge: EdgeDefinition) {
-    const source = this.byId.get(edge.source)!;
-    source.activation = Math.min(1.4, source.activation + 0.4);
-    this.queueWave(createConnectionSignal(edge, this.clock));
+  emitConnection(edge: EdgeDefinition, contactFraction = 0) {
+    this.queueWave(createConnectionSignal(edge, this.clock, contactFraction));
   }
 
   private queueWave(wave: SignalWave) {
-    // Reserve a place for each distinct seed (21 neurons + 85 edges). At extreme
-    // rates, only identical seeds aggregate; earlier timelines never reset.
+    // Aggregate identical seeds/contacts early under heavy input. Distinct
+    // contacts keep their own origins and timelines until the hard wave cap.
     const seedCount = this.nodes.length - 1 + network.edges.length;
     if (this.waves.length >= config.maxConcurrentSignals - seedCount + 1) {
-      const existing = this.waves.slice().reverse().find(item => item.origin === wave.origin && item.edgeOrigin === wave.edgeOrigin);
+      const existing = this.waves.slice().reverse().find(item => item.origin === wave.origin && item.edgeOrigin === wave.edgeOrigin
+        && item.contactFraction === wave.contactFraction);
       if (existing) { existing.intensity = Math.min(config.chargeMaxSignalIntensity, existing.intensity + 0.2); return; }
+    }
+    if (this.waves.length >= config.maxConcurrentSignals) {
+      // At saturation, aggregate a repeated edge without resetting its original
+      // contact/timeline. Below that hard cap, distinct contacts stay independent.
+      const existing = this.waves.slice().reverse().find(item => item.origin === wave.origin && item.edgeOrigin === wave.edgeOrigin);
+      if (existing) existing.intensity = Math.min(config.chargeMaxSignalIntensity, existing.intensity + 0.2);
+      return;
     }
     this.waves.push(wave);
   }
@@ -110,7 +116,7 @@ export class NetworkSimulation {
       for (const node of this.nodes) {
         if (node.definition.layer <= wave.layer || wave.arrived.has(node.definition.id)) continue;
         if (wave.edgeOrigin && node.definition.layer === wave.layer + 1 && node.definition.id !== wave.destination) continue;
-        if (now >= wave.started + (node.definition.layer - wave.layer) * wave.duration) {
+        if (now >= signalArrival(wave, node.definition.layer)) {
           wave.arrived.add(node.definition.id);
           node.activation = Math.min(1.4, node.activation + wave.intensity * 0.65);
         }
@@ -161,7 +167,10 @@ export class NetworkSimulation {
         const gy = this.gesture!.origin.y - this.pan.y - node.base.y;
         const distance = Math.hypot(gx, gy);
         const falloff = Math.max(0, 1 - distance / gravity.influenceRadius);
-        const amount = Math.min(gravity.maxDisplacement, Math.max(0, distance - node.radius * 1.4)) * falloff * this.gravityStrength * (1 - node.expansion * 0.95);
+        const availableTravel = Math.max(0, distance - node.radius * 1.4);
+        // Cap after the strength multiplier, and never target past the well's
+        // clearance. Local circle collisions provide separation between nodes.
+        const amount = Math.min(gravity.maxDisplacement, availableTravel, availableTravel * falloff * this.gravityStrength) * (1 - node.expansion * 0.95);
         gravityOffset = { x: gx / Math.max(1, distance) * amount, y: gy / Math.max(1, distance) * amount };
       }
       const gravityFactor = slow ? 1 : smoothFactor(gravity.smoothing, dt);

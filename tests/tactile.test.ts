@@ -5,8 +5,8 @@ import { motionConfig } from '../src/config/motion';
 import { NetworkSimulation } from '../src/simulation/NetworkSimulation';
 import { advancePanGesture, resolveGesture } from '../src/utils/gesture';
 import { restingRadius } from '../src/utils/geometry';
-import { distanceToCurve, quadraticPoint, sweptCurveContact } from '../src/utils/strandGeometry';
-import { reachesEdge } from '../src/utils/signal';
+import { distanceToCurve, downstreamCurve, quadraticPoint, sweptCurveContact } from '../src/utils/strandGeometry';
+import { createConnectionSignal, reachesEdge, signalArrival, signalFinished, signalInkAt, signalProgress } from '../src/utils/signal';
 import type { Point } from '../src/types/network';
 
 function run(engine: NetworkSimulation, seconds: number) {
@@ -46,7 +46,7 @@ describe('strand contact and release', () => {
     expect(state.grab).toBe(null);
   });
 
-  it('grabs on contact, remains attached at 20px, and releases at exactly 35px', () => {
+  it('grabs on contact, stays attached past old thresholds, and releases at exactly 70px', () => {
     const { engine, edge, state, move } = strandFixture();
     move({ x: 200, y: 80 }, { x: 200, y: 100 });
     expect(state.grab?.pointerStart).toEqual({ x: 200, y: 100 });
@@ -56,13 +56,20 @@ describe('strand contact and release', () => {
     engine.step(engine.clock + 16, 1 / 60);
     expect(Math.hypot(state.bend.x, state.bend.y)).toBeGreaterThan(20);
     expect(distanceToCurve({ x: 200, y: 120 }, state.geometry)).toBeLessThan(5);
-    move({ x: 200, y: 120 }, { x: 200, y: 135 });
+    for (const distance of [35, 45, 69.9]) {
+      move({ x: 200, y: 120 }, { x: 200, y: 100 + distance });
+      expect(state.grab).not.toBe(null);
+      expect(engine.waves).toHaveLength(0);
+    }
+    move({ x: 200, y: 169.9 }, { x: 200, y: 170 });
     expect(state.grab).toBe(null);
     expect(engine.waves).toHaveLength(1);
     expect(engine.waves[0].edgeOrigin).toBe(edge.id);
+    expect(engine.waves[0].contactFraction).toBeCloseTo(0.5);
+    expect(engine.byId.get(edge.source)!.activation).toBe(0);
   });
 
-  it.each([[35, 0], [0, 35], [21, 28], [-35, 0], [0, -35]] as const)('releases for 2D displacement (%s, %s), including parallel movement', (dx, dy) => {
+  it.each([[70, 0], [0, 70], [42, 56], [-70, 0], [0, -70], [-42, -56]] as const)('releases for 2D displacement (%s, %s), including parallel movement', (dx, dy) => {
     const { state, engine, move } = strandFixture();
     move({ x: 200, y: 80 }, { x: 200, y: 100 });
     move({ x: 200, y: 100 }, { x: 200 + dx, y: 100 + dy });
@@ -80,7 +87,7 @@ describe('strand contact and release', () => {
       expect(state.grab).not.toBe(null);
       previous = point;
     }
-    move(previous, { x: 236, y: 100 });
+    move(previous, { x: 270, y: 100 });
     expect(state.grab).toBe(null);
   });
 
@@ -116,27 +123,30 @@ describe('strand contact and release', () => {
     expect(state.grab).not.toBe(null);
     expect(second.grab).not.toBe(null);
     expect(engine.connections.grabbedCount).toBe(2);
-    move({ x: 200, y: 130 }, { x: 200, y: 146 });
+    const firstContact = state.grab!.fraction, secondContact = second.grab!.fraction;
+    move({ x: 200, y: 130 }, { x: 200, y: 181 });
     expect(state.grab).toBe(null);
     expect(second.grab).not.toBe(null);
     expect(engine.waves.map(wave => wave.edgeOrigin)).toEqual([edge.id]);
     const firstWave = engine.waves[0];
-    move({ x: 200, y: 146 }, { x: 200, y: 166 });
+    expect(firstWave.contactFraction).toBe(firstContact);
+    move({ x: 200, y: 181 }, { x: 200, y: 201 });
     expect(second.grab).toBe(null);
     expect(engine.waves.map(wave => wave.edgeOrigin)).toEqual([edge.id, secondEdge.id]);
     expect(engine.waves[0]).toBe(firstWave);
+    expect(engine.waves[1].contactFraction).toBe(secondContact);
   });
 
   it('requires exit and re-entry after release, even after the cooldown expires', () => {
     const { engine, state, move } = strandFixture();
     move({ x: 200, y: 80 }, { x: 200, y: 100 });
-    move({ x: 200, y: 100 }, { x: 235, y: 100 });
-    move({ x: 235, y: 100 }, { x: 238, y: 100 }, 1000);
-    move({ x: 238, y: 100 }, { x: 242, y: 100 }, 1200);
+    move({ x: 200, y: 100 }, { x: 270, y: 100 });
+    move({ x: 270, y: 100 }, { x: 272, y: 100 }, 1000);
+    move({ x: 272, y: 100 }, { x: 273, y: 100 }, 1200);
     expect(state.grab).toBe(null);
     expect(engine.waves).toHaveLength(1);
-    move({ x: 242, y: 100 }, { x: 242, y: 130 }, 1300);
-    move({ x: 242, y: 130 }, { x: 242, y: 100 }, 1400);
+    move({ x: 273, y: 100 }, { x: 200, y: 130 }, 1300);
+    move({ x: 200, y: 130 }, { x: 200, y: 100 }, 1400);
     expect(state.grab).not.toBe(null);
   });
 
@@ -169,9 +179,9 @@ describe('strand contact and release', () => {
     engine.pan = { x: 80, y: -30 };
     move({ x: 280, y: 50 }, { x: 280, y: 70 });
     expect(state.grab?.pointerStart).toEqual({ x: 280, y: 70 });
-    move({ x: 280, y: 70 }, { x: 314, y: 70 });
+    move({ x: 280, y: 70 }, { x: 349, y: 70 });
     expect(state.grab).not.toBe(null);
-    move({ x: 314, y: 70 }, { x: 315, y: 70 });
+    move({ x: 349, y: 70 }, { x: 350, y: 70 });
     expect(state.grab).toBe(null);
   });
 });
@@ -189,12 +199,63 @@ describe('released-edge signal routing', () => {
     expect(next).toHaveLength(5);
     expect(next.every(candidate => candidate.source === edge.target)).toBe(true);
     engine.step(wave.duration + 1, 0.016);
-    expect(wave.arrived).toEqual(new Set([edge.source, edge.target]));
+    expect(wave.arrived).toEqual(new Set([edge.target]));
     engine.step(wave.duration * 2 + 1, 0.016);
-    expect(wave.arrived.size).toBe(7);
+    expect(wave.arrived.size).toBe(6);
     engine.step(wave.duration * 3 + 1, 0.016);
-    expect(wave.arrived.size).toBe(8);
+    expect(wave.arrived.size).toBe(7);
     expect(engine.selected).toBe(null);
+  });
+
+  it.each([0.15, 0.37, 0.75, 0.9])('starts at contact %s, never lights upstream, and uses the remaining travel time', fraction => {
+    const engine = new NetworkSimulation();
+    const edge = network.edges.find(edge => edge.layer === 2)!;
+    engine.emitConnection(edge, fraction);
+    const wave = engine.waves[0];
+    expect(signalProgress(wave, edge, wave.started)).toBeCloseTo(fraction);
+    expect(signalInkAt(wave, edge, wave.started, fraction)).toBeGreaterThan(0);
+    for (const elapsed of [0, 0.1, 0.3, 0.6]) {
+      expect(signalInkAt(wave, edge, wave.started + elapsed * wave.duration, fraction - 0.001)).toBe(0);
+    }
+    expect(wave.arrived.size).toBe(0);
+    expect(engine.byId.get(edge.source)!.activation).toBe(0);
+    const arrival = signalArrival(wave, edge.layer + 1);
+    expect(arrival).toBeCloseTo(wave.started + (1 - fraction) * wave.duration);
+    engine.step(arrival - 1, 0.016);
+    expect(wave.arrived.size).toBe(0);
+    engine.step(arrival, 0.016);
+    expect(wave.arrived).toEqual(new Set([edge.target]));
+    const nextEdge = network.edges.find(candidate => candidate.source === edge.target)!;
+    expect(signalProgress(wave, nextEdge, arrival)).toBeCloseTo(0);
+    engine.step(signalArrival(wave, edge.layer + 2), 0.016);
+    expect(wave.arrived.size).toBe(6);
+    expect(wave.arrived.has(edge.source)).toBe(false);
+  });
+
+  it('expires a contact-started signal only after its final downstream tail has faded', () => {
+    const edge = network.edges[0];
+    const wave = createConnectionSignal(edge, 100, 0.6);
+    const end = signalArrival(wave, 5) + wave.tail * wave.duration + motionConfig.signalFadeDuration;
+    expect(signalFinished(wave, end - 1)).toBe(false);
+    expect(signalFinished(wave, end + 1)).toBe(true);
+  });
+
+  it('keeps clipped ink on the original curved strand while it deforms and returns', () => {
+    const { engine, state } = strandFixture();
+    for (const bend of [{ x: 0, y: 0 }, { x: 70, y: 90 }, { x: -120, y: 40 }]) {
+      state.bend = bend;
+      engine.connections.updateGeometry();
+      const original = state.geometry;
+      const fraction = 0.37;
+      const clipped = downstreamCurve(original, fraction);
+      expect(clipped.start).toEqual(quadraticPoint(original.start, original.control, original.end, fraction));
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        const actual = quadraticPoint(clipped.start, clipped.control, clipped.end, t);
+        const expected = quadraticPoint(original.start, original.control, original.end, fraction + (1 - fraction) * t);
+        expect(actual.x).toBeCloseTo(expected.x);
+        expect(actual.y).toBeCloseTo(expected.y);
+      }
+    }
   });
 
   it('bounds concurrent mixed seeds without resetting any earlier timeline', () => {
@@ -209,6 +270,26 @@ describe('released-edge signal routing', () => {
     expect(engine.waves[0]).toBe(first);
     expect(first.started).toBe(0);
     expect(engine.waves.every(wave => wave.intensity <= motionConfig.chargeMaxSignalIntensity)).toBe(true);
+  });
+
+  it('preserves distinct original contact positions when the same edge releases repeatedly', () => {
+    const engine = new NetworkSimulation();
+    const edge = network.edges[0];
+    for (let i = 0; i < 24; i++) engine.emit('neuron-1-1');
+    engine.emitConnection(edge, 0.2);
+    const first = engine.waves.at(-1)!;
+    engine.clock = 200;
+    engine.emitConnection(edge, 0.7);
+    const second = engine.waves.at(-1)!;
+    expect(first).not.toBe(second);
+    expect(first.contactFraction).toBe(0.2);
+    expect(second.contactFraction).toBe(0.7);
+    expect(first.started).toBe(0);
+    expect(second.started).toBe(200);
+    for (let i = 0; i < 2000; i++) engine.emitConnection(edge, (i % 1000) / 1000);
+    expect(engine.waves.length).toBeLessThanOrEqual(motionConfig.maxConcurrentSignals);
+    expect(first.contactFraction).toBe(0.2);
+    expect(first.started).toBe(0);
   });
 });
 
@@ -243,6 +324,44 @@ describe('tactile node motion', () => {
     run(engine, 4);
     expect(node.gravityOffset.x).toBeLessThan(0.01);
     expect(Math.hypot(node.x - node.base.x, node.y - node.base.y)).toBeLessThan(12);
+  });
+
+  it('pulls substantially farther and more strongly, with a post-strength displacement cap', () => {
+    const engine = new NetworkSimulation();
+    engine.resize(1200, 600, true);
+    // Isolate three neighbors so collision packing cannot hide the force comparison.
+    engine.nodes.forEach((node, i) => {
+      node.base = { x: 10000 + i * 500, y: 10000 + i * 300 };
+      Object.assign(node, node.base);
+    });
+    const origin = { x: 500, y: 300 };
+    const near = engine.nodes[0], broad = engine.nodes[1], far = engine.nodes[2];
+    for (const [node, point] of [[near, { x: 435, y: 300 }], [broad, { x: 700, y: 300 }], [far, { x: 500, y: 600 }]] as const) {
+      node.base = point; Object.assign(node, point);
+    }
+    engine.gesture = { pointerId: 1, nodeId: null, origin, lastPoint: origin, started: 0, moved: false };
+    run(engine, 3);
+    expect(engine.gravityStrength).toBeGreaterThan(2.4);
+    const oldNearPull = Math.min(48, 65 - near.radius * 1.4) * (1 - 65 / 160);
+    // The 65px neighbor stops at the clearance rather than overshooting the hand.
+    expect(near.gravityOffset.x).toBeGreaterThan(oldNearPull * 1.6);
+    expect(-broad.gravityOffset.x).toBeGreaterThan(110);
+    expect(-far.gravityOffset.y).toBeGreaterThan(35);
+    expect(Math.abs(far.gravityOffset.y)).toBeLessThan(Math.abs(broad.gravityOffset.x));
+    expect(near.x).toBeGreaterThan(near.base.x + oldNearPull * 1.5);
+    expect(broad.x).toBeLessThan(broad.base.x - 100);
+    for (const node of engine.nodes) {
+      expect(Math.hypot(node.gravityOffset.x, node.gravityOffset.y)).toBeLessThanOrEqual(config.gravityWell.maxDisplacement);
+      expect(Number.isFinite(node.x) && Number.isFinite(node.y)).toBe(true);
+    }
+    const offset = Math.abs(broad.gravityOffset.x);
+    engine.gesture = null;
+    engine.step(engine.clock + 16, 1 / 60);
+    expect(Math.abs(broad.gravityOffset.x)).toBeGreaterThan(0);
+    expect(Math.abs(broad.gravityOffset.x)).toBeLessThan(offset);
+    run(engine, 5);
+    expect(Math.hypot(broad.gravityOffset.x, broad.gravityOffset.y)).toBeLessThan(0.01);
+    expect(Math.hypot(broad.x - broad.base.x, broad.y - broad.base.y)).toBeLessThan(12);
   });
 
   it('locks gravity and panning to separate gestures and preserves long-press release behavior', () => {

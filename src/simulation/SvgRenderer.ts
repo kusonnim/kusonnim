@@ -1,9 +1,9 @@
 import { network } from '../data/network';
 import { palette } from '../config/theme';
 import { motionConfig } from '../config/motion';
-import { curvePath } from '../utils/strandGeometry';
+import { curvePath, downstreamCurve } from '../utils/strandGeometry';
 import { clamp, lerp } from '../utils/geometry';
-import { inkAt, reachesEdge, signalProgress } from '../utils/signal';
+import { reachesEdge, signalInkAt, signalProgress, signalStart } from '../utils/signal';
 import type { NetworkSimulation } from './NetworkSimulation';
 
 export const gradientSamples = Array.from({ length: 17 }, (_, index) => index / 16);
@@ -99,24 +99,26 @@ export class SvgRenderer {
       elements.line.setAttribute('data-grabbed', String(!!state.grab));
       elements.line.setAttribute('data-bend', number(Math.hypot(state.bend.x, state.bend.y)));
       elements.line.setAttribute('data-armed', String(state.armed));
-      const endpoints = {
-        x1: state.geometry.start.x, y1: state.geometry.start.y,
-        x2: state.geometry.end.x, y2: state.geometry.end.y,
-      };
-      for (const [attribute, value] of Object.entries(endpoints)) {
-        const formatted = number(value);
-        elements.gradient.setAttribute(attribute, formatted);
-      }
       const waves = simulation.waves.filter(wave => {
         if (!reachesEdge(wave, edge)) return false;
         const progress = signalProgress(wave, edge, simulation.clock);
         return progress >= 0 && progress <= 1 + wave.tail;
       });
       if (waves.length) {
+        const start = Math.min(...waves.map(wave => signalStart(wave, edge)));
+        const geometry = downstreamCurve(state.geometry, start);
+        // Clip ink at the original material contact, not at the release cursor
+        // or source neuron. De Casteljau splitting follows the same bent path.
+        elements.active.setAttribute('d', curvePath(geometry));
+        elements.active.setAttribute('data-contact-start', String(start));
+        for (const [attribute, value] of Object.entries({ x1: geometry.start.x, y1: geometry.start.y, x2: geometry.end.x, y2: geometry.end.y })) {
+          elements.gradient.setAttribute(attribute, number(value));
+        }
         elements.active.setAttribute('opacity', '1');
         elements.active.setAttribute('stroke-width', number(Math.min(2.3, 1.3 + Math.max(...waves.map(wave => wave.intensity)) * 0.45)));
         elements.stops.forEach((stop, index) => {
-          const opacity = waves.reduce((total, wave) => total + inkAt(signalProgress(wave, edge, simulation.clock), gradientSamples[index], wave.tail) * wave.intensity, 0);
+          const position = start + (1 - start) * gradientSamples[index];
+          const opacity = waves.reduce((total, wave) => total + signalInkAt(wave, edge, simulation.clock, position) * wave.intensity, 0);
           stop.setAttribute('stop-opacity', number(Math.min(0.95, opacity)));
         });
         elements.visible = true;

@@ -11,7 +11,7 @@ import { Neuron } from '../src/components/Neuron';
 import { network } from '../src/data/network';
 import { panLimits, restingRadius } from '../src/utils/geometry';
 import { tactileConfig } from '../src/config/tactile';
-import { quadraticPoint } from '../src/utils/strandGeometry';
+import { curvePath, downstreamCurve, quadraticPoint } from '../src/utils/strandGeometry';
 
 let root: Root;
 let container: HTMLDivElement;
@@ -218,7 +218,7 @@ it('keeps hover working and hit circles matched to rendered circles during all s
   }
 });
 
-it('touches, bends and releases a strand without any button press, using matching ink paths', () => {
+it('touches and releases at 70px without buttons, with ink clipped at the original contact', () => {
   const state = simulation.connections.states[0];
   const contact = quadraticPoint(state.geometry.start, state.geometry.control, state.geometry.end, 0.5);
   pointer('pointermove', svg, contact.x, contact.y - 12, 'mouse');
@@ -235,12 +235,17 @@ it('touches, bends and releases a strand without any button press, using matchin
   expect(path.getAttribute('data-grabbed')).toBe('true');
   expect(Number(path.getAttribute('data-bend'))).toBeGreaterThan(5);
   expect(path.getAttribute('d')).toBe(ink.getAttribute('d'));
-  pointer('pointermove', svg, contact.x, contact.y + 36, 'mouse');
+  const fraction = state.grab!.fraction;
+  pointer('pointermove', svg, contact.x, contact.y + 69, 'mouse');
+  expect(state.grab).not.toBe(null);
+  pointer('pointermove', svg, contact.x, contact.y + 70, 'mouse');
   expect(state.grab).toBe(null);
   expect(simulation.waves.some(wave => wave.edgeOrigin === state.definition.id)).toBe(true);
   simulation.step(simulation.clock + 50, 0.05);
   renderer.draw();
-  expect(path.getAttribute('d')).toBe(ink.getAttribute('d'));
+  expect(path.getAttribute('d')).toBe(curvePath(state.geometry));
+  expect(ink.getAttribute('d')).toBe(curvePath(downstreamCurve(state.geometry, fraction)));
+  expect(Number(ink.getAttribute('data-contact-start'))).toBeCloseTo(fraction);
   expect(ink.getAttribute('opacity')).toBe('1');
   expect(simulation.selected).toBe(null);
 });

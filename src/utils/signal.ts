@@ -13,10 +13,13 @@ export interface SignalWave {
   arrived: Set<string>;
   edgeOrigin?: string;
   destination?: string;
+  /** Material position on the originally touched strand, from source (0) to destination (1). */
+  contactFraction?: number;
 }
 
-export function createConnectionSignal(edge: EdgeDefinition, started: number): SignalWave {
-  return { ...createSignal(edge.source, started, 0), edgeOrigin: edge.id, destination: edge.target };
+export function createConnectionSignal(edge: EdgeDefinition, started: number, contactFraction = 0): SignalWave {
+  return { ...createSignal(edge.source, started, 0), edgeOrigin: edge.id, destination: edge.target,
+    contactFraction: clamp(contactFraction, 0, 1), arrived: new Set() };
 }
 
 export function createSignal(origin: string, started: number, charge: number): SignalWave {
@@ -43,7 +46,21 @@ export function reachesEdge(wave: SignalWave, edge: EdgeDefinition): boolean {
 }
 
 export function signalProgress(wave: SignalWave, edge: EdgeDefinition, now: number): number {
-  return (now - wave.started) / wave.duration - (edge.layer - wave.layer);
+  return (now - wave.started) / wave.duration + (wave.contactFraction ?? 0) - (edge.layer - wave.layer);
+}
+
+export function signalStart(wave: SignalWave, edge: EdgeDefinition): number {
+  return wave.edgeOrigin === edge.id ? wave.contactFraction ?? 0 : 0;
+}
+
+export function signalArrival(wave: SignalWave, layer: number): number {
+  return wave.started + (layer - wave.layer - (wave.contactFraction ?? 0)) * wave.duration;
+}
+
+/** A released-strand pulse never paints the part upstream of its contact. */
+export function signalInkAt(wave: SignalWave, edge: EdgeDefinition, now: number, position: number): number {
+  if (position < signalStart(wave, edge)) return 0;
+  return inkAt(signalProgress(wave, edge, now), position, wave.tail);
 }
 
 export function inkAt(progress: number, position: number, tail: number): number {
@@ -55,5 +72,5 @@ export function inkAt(progress: number, position: number, tail: number): number 
 }
 
 export function signalFinished(wave: SignalWave, now: number): boolean {
-  return now - wave.started > (5 - wave.layer + wave.tail) * wave.duration + config.signalFadeDuration;
+  return now - wave.started > (5 - wave.layer - (wave.contactFraction ?? 0) + wave.tail) * wave.duration + config.signalFadeDuration;
 }

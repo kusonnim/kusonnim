@@ -32,7 +32,8 @@ client-side routes, so no special rewrite rule is needed. It has not been deploy
   gravity well. Release to let them settle; moving first starts a pan instead.
 - Move the cursor without pressing a button to stir nearby neurons and touch
   connection strands. Every crossed eligible strand follows independently until
-  the cursor moves 35 CSS pixels from its contact, then releases and signals forward.
+  the cursor moves 70 CSS pixels from its contact, then releases and signals forward
+  from that original contact point, without lighting the upstream source neuron.
   Leaving the scene or pressing a button cancels unfinished grabs without signaling.
 - All neurons are keyboard reachable. Enter or Space selects/activates; holding
   either key charges. Keyboard focus remains on the selected neuron.
@@ -50,11 +51,13 @@ These instructions are documentation only; they do not appear in the interface.
   pan bounds. Pointer proximity strength, velocity gain and velocity cap are
   independent of pointer smoothing. Hit circles track the exact rendered radius.
 - `src/config/tactile.ts`: 1.25 resting-size multiplier (effective radii 21.25 /
-  17.5), gravity hold threshold (350ms), radius (160px), buildup (900ms), maximum
-  displacement (48px), stirring strength (1), damping (6 per second), radius
+  17.5), gravity hold threshold (350ms), radius (320px), strength (2.5), buildup
+  (900ms), maximum displacement (120px, capped after applying strength and limited
+  by press-point clearance), stirring strength (1), damping (6 per second), radius
   (120px), velocity/displacement caps (110px/s / 22px), connection-release distance
-  (35 CSS pixels), hit tolerance (5px), cooldown (180ms), endpoint influence (0.25),
-  aggregate endpoint cap (24px), and stretch/release smoothing (12 / 18 per second).
+  (70 CSS pixels), hit tolerance (5px), cooldown (180ms), endpoint influence (0.25),
+  aggregate endpoint cap (24px), curve control-offset cap (210px), and stretch/release
+  smoothing (12 / 18 per second).
   These exponential rates are independent of frame rate, not per-frame multipliers.
 - `src/config/theme.ts` and `src/styles/global.css`: ink, parchment and typography.
 - `src/data/projects.ts`: fixed project assignments, URLs, image paths and crop
@@ -87,11 +90,18 @@ temporary velocity and offsets. The clock pauses while the page is hidden, and
 temporary connection grabs are cancelled.
 
 Signals visit each reachable edge and neuron once per wave. Released strands seed
-only their own edge, then its destination and reachable later layers. Base ink,
+their original contact fraction on their own edge, then its destination and
+reachable later layers. The seed ink is clipped to the downstream portion of the
+current quadratic, so neither its source nor the upstream strand is activated.
+Destination timing reflects the remaining contact-to-end distance; subsequent
+layers retain the existing propagation speed. Base ink,
 signal ink, and swept contact detection share the current quadratic geometry;
 no moving signal particles are rendered. At extreme input
 rates, newer impulses at the same origin merge in intensity while earlier wave
-timelines remain intact. The visual wave count and intensity are bounded.
+timelines remain intact. Distinct contacts remain separate below the hard cap of
+128 concurrent waves. At that extreme limit, repeated same-edge emissions merge
+into existing intensity while retaining the earlier contact and timeline. The
+visual wave count and intensity are bounded.
 
 The automated suite covers topology, assignments, charging and gesture
 classification, signal direction and arrivals, concurrent signals, collision
@@ -100,10 +110,12 @@ Mouse and touch pointer-event integration tests cover all four pan boundaries,
 continued outward dragging and immediate reversal, repeated changes of direction,
 gesture cancellation, clicks, charged releases, previews and navigation. Panning
 consumes each pointer delta even when clamped, so there is no accumulated overscroll.
-Tactile tests cover swept and curved contacts, all release directions, CSS-pixel
+Tactile tests cover swept and curved contacts, all release directions at 70px,
+original-contact ink clipping and arrival timing, CSS-pixel
 thresholds under panning, independent simultaneous grabs, cooldown and re-entry,
 preview occlusion, cancellation, edge-specific propagation, dense force caps,
-gravity recovery, and stirring decay without drift. Connection hover contacts are
+stronger near/far gravity, post-strength caps, recovery, and stirring decay without
+drift. Connection hover contacts are
 tested through the real React pointer-event handlers as well as the pure engine.
 Browser checks cover screenshot loading, selection, keyboard navigation,
 long-press release, background gravity holds, signals and bounded panning at

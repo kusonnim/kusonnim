@@ -4,9 +4,9 @@ export const tactileConfig = {
   gravityWell: {
     holdThreshold: 350,
     buildupDuration: 900,
-    influenceRadius: 160,
-    maxStrength: 1,
-    maxDisplacement: 48,
+    influenceRadius: 320,
+    maxStrength: 2.5,
+    maxDisplacement: 120,
     smoothing: 5,
   },
   pointerStirring: {
@@ -19,7 +19,7 @@ export const tactileConfig = {
     returnSmoothing: 3.2,
   },
   connectionGrab: {
-    maxGrabDistance: 35,
+    maxGrabDistance: 70,
     hitTolerance: 5,
     releaseCooldown: 180,
     rearmMargin: 3,
@@ -28,7 +28,7 @@ export const tactileConfig = {
     endpointSmoothing: 8,
     stretchSmoothing: 12,
     releaseSmoothing: 18,
-    maxControlOffset: 105,
+    maxControlOffset: 210,
     contactEndInset: 0.08,
     curveSegments: 16,
     minimumPointerMovement: 0.05,

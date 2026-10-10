@@ -3,6 +3,7 @@ import { clamp, lerp, limitVector } from './geometry';
 import { tactileConfig } from '../config/tactile';
 
 export interface StrandGeometry { start: Point; control: Point; end: Point; samples: Point[] }
+type CurveShape = Pick<StrandGeometry, 'start' | 'control' | 'end'>;
 export interface Contact { pointer: Point; line: Point; pointerT: number; lineT: number; distance: number }
 
 export function quadraticPoint(start: Point, control: Point, end: Point, t: number): Point {
@@ -97,7 +98,16 @@ export function distanceToCurve(point: Point, geometry: StrandGeometry): number 
   return distance;
 }
 
-export function curvePath(geometry: StrandGeometry): string {
+export function curvePath(geometry: CurveShape): string {
   const { start, control, end } = geometry;
   return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} Q ${control.x.toFixed(2)} ${control.y.toFixed(2)} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+}
+
+/** The downstream part of the same quadratic; its start remains on the moving strand. */
+export function downstreamCurve(geometry: CurveShape, from: number): CurveShape {
+  const t = clamp(from, 0, 1);
+  if (t === 0) return geometry;
+  const start = quadraticPoint(geometry.start, geometry.control, geometry.end, t);
+  const control = { x: lerp(geometry.control.x, geometry.end.x, t), y: lerp(geometry.control.y, geometry.end.y, t) };
+  return { start, control, end: geometry.end };
 }

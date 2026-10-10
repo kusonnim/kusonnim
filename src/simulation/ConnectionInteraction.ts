@@ -31,7 +31,7 @@ export class ConnectionInteraction {
   byId: Map<string, StrandState>;
   private config = tactileConfig.connectionGrab;
 
-  constructor(private nodes: Map<string, NeuronState>, private emit: (edge: EdgeDefinition) => void) {
+  constructor(private nodes: Map<string, NeuronState>, private emit: (edge: EdgeDefinition, contactFraction: number) => void) {
     this.states = network.edges.map(definition => ({ definition, bend: { x: 0, y: 0 }, pull: { x: 0, y: 0 }, pullFraction: 0.5, grab: null,
       armed: true, leftHitRegion: false, releasedAt: -Infinity,
       geometry: strandGeometry(nodes.get(definition.source)!, nodes.get(definition.target)!, { x: 0, y: 0 }) }));
@@ -41,11 +41,12 @@ export class ConnectionInteraction {
   get grabbedCount() { return this.states.filter(state => state.grab).length; }
 
   private release(state: StrandState, now: number, signal: boolean) {
+    const contactFraction = state.grab?.fraction;
     state.grab = null;
     state.armed = false;
     state.leftHitRegion = false;
     state.releasedAt = now;
-    if (signal) this.emit(state.definition);
+    if (signal && contactFraction !== undefined) this.emit(state.definition, contactFraction);
   }
 
   cancel(now: number, pointerLeft = false) {
@@ -83,7 +84,7 @@ export class ConnectionInteraction {
       state.grab = { pointerStart, lineContact: contact.line,
         contactOffset: { x: contact.line.x - contact.pointer.x, y: contact.line.y - contact.pointer.y },
         fraction: clamp(contact.lineT, this.config.contactEndInset, 1 - this.config.contactEndInset), pointer: { ...to } };
-      // A fast swept crossing may already have traveled 35px beyond its contact.
+      // A fast swept crossing may already exceed the configured contact distance.
       if (Math.hypot(to.x - pointerStart.x, to.y - pointerStart.y) >= this.config.maxGrabDistance) this.release(state, now, true);
     }
   }
