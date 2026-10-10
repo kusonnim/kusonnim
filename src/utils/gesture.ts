@@ -1,4 +1,5 @@
 import { motionConfig as config } from '../config/motion';
+import { tactileConfig } from '../config/tactile';
 import { clamp, constrainPan } from './geometry';
 import type { Gesture, GestureResult, Point } from '../types/network';
 
@@ -11,7 +12,9 @@ export function advancePanGesture(gesture: Gesture, point: Point, pan: Point, wi
   const delta = { x: point.x - gesture.lastPoint.x, y: point.y - gesture.lastPoint.y };
   gesture.lastPoint = { ...point };
   gesture.moved ||= movedBeyondSlop(gesture.origin, point);
+  if (gesture.mode === 'gravity') return pan;
   if (!gesture.moved || gesture.nodeId !== null) return pan;
+  gesture.mode = 'pan';
   return constrainPan({ x: pan.x + delta.x, y: pan.y + delta.y }, width, height);
 }
 
@@ -22,7 +25,8 @@ export function chargeAt(elapsed: number): number {
 
 export function resolveGesture(gesture: Gesture, elapsed: number, canceled = false): GestureResult {
   if (canceled) return 'cancel';
+  if (gesture.mode === 'gravity') return gesture.moved ? 'cancel' : 'gravity';
   if (gesture.moved) return 'pan';
-  if (gesture.nodeId === null) return 'background';
+  if (gesture.nodeId === null) return elapsed >= tactileConfig.gravityWell.holdThreshold ? 'gravity' : 'background';
   return elapsed >= config.longPressThreshold ? 'charge' : 'activate';
 }

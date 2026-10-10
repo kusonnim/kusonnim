@@ -39,6 +39,7 @@ export function useNetworkSimulation() {
   }, () => {
     simulation.gesture = null;
     simulation.pointer.active = false;
+    simulation.cancelTactile(true);
     svgRef.current?.setAttribute('data-gesture', 'idle');
   });
   return { simulation, svgRef };

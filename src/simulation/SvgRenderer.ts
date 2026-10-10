@@ -1,6 +1,7 @@
 import { network } from '../data/network';
 import { palette } from '../config/theme';
 import { motionConfig } from '../config/motion';
+import { curvePath } from '../utils/strandGeometry';
 import { clamp, lerp } from '../utils/geometry';
 import { inkAt, reachesEdge, signalProgress } from '../utils/signal';
 import type { NetworkSimulation } from './NetworkSimulation';
@@ -38,8 +39,8 @@ export class SvgRenderer {
       };
     });
     this.edgeElements = network.edges.map(edge => ({
-      line: svg.querySelector<SVGLineElement>(`[data-edge="${edge.id}"]`)!,
-      active: svg.querySelector<SVGLineElement>(`[data-signal="${edge.id}"]`)!,
+      line: svg.querySelector<SVGPathElement>(`[data-edge="${edge.id}"]`)!,
+      active: svg.querySelector<SVGPathElement>(`[data-signal="${edge.id}"]`)!,
       gradient: svg.querySelector<SVGLinearGradientElement>(`#ink-${edge.id}`)!,
       stops: Array.from(svg.querySelectorAll<SVGStopElement>(`#ink-${edge.id} stop`)),
       visible: false,
@@ -50,9 +51,12 @@ export class SvgRenderer {
     const simulation = this.simulation;
     this.scene.setAttribute('transform', `translate(${number(simulation.pan.x)} ${number(simulation.pan.y)})`);
     this.svg.setAttribute('data-wave-count', String(simulation.waves.length));
+    this.svg.setAttribute('data-grab-count', String(simulation.connections.grabbedCount));
+    this.svg.setAttribute('data-gravity', number(simulation.gravityStrength));
     if (simulation.gesture?.nodeId && !simulation.gesture.moved) {
       this.svg.setAttribute('data-gesture', simulation.clock - simulation.gesture.started >= motionConfig.longPressThreshold ? 'charging' : 'pointer-down');
     }
+    if (simulation.gesture?.nodeId === null) this.svg.setAttribute('data-gesture', simulation.gesture.mode === 'gravity' ? 'gravity' : simulation.gesture.moved ? 'panning' : 'background-hold');
     for (let i = 0; i < simulation.nodes.length; i++) {
       const node = simulation.nodes[i], elements = this.neuronElements[i];
       const radius = number(node.radius);
@@ -88,18 +92,19 @@ export class SvgRenderer {
 
     for (let i = 0; i < network.edges.length; i++) {
       const edge = network.edges[i], elements = this.edgeElements[i];
-      const source = simulation.byId.get(edge.source)!, target = simulation.byId.get(edge.target)!;
-      const dx = target.x - source.x, dy = target.y - source.y;
-      const length = Math.max(1, Math.hypot(dx, dy));
-      const insetA = Math.min(source.radius, length / 2), insetB = Math.min(target.radius, length / 2);
+      const state = simulation.connections.states[i];
+      const path = curvePath(state.geometry);
+      elements.line.setAttribute('d', path);
+      elements.active.setAttribute('d', path);
+      elements.line.setAttribute('data-grabbed', String(!!state.grab));
+      elements.line.setAttribute('data-bend', number(Math.hypot(state.bend.x, state.bend.y)));
+      elements.line.setAttribute('data-armed', String(state.armed));
       const endpoints = {
-        x1: source.x + dx / length * insetA, y1: source.y + dy / length * insetA,
-        x2: target.x - dx / length * insetB, y2: target.y - dy / length * insetB,
+        x1: state.geometry.start.x, y1: state.geometry.start.y,
+        x2: state.geometry.end.x, y2: state.geometry.end.y,
       };
       for (const [attribute, value] of Object.entries(endpoints)) {
         const formatted = number(value);
-        elements.line.setAttribute(attribute, formatted);
-        elements.active.setAttribute(attribute, formatted);
         elements.gradient.setAttribute(attribute, formatted);
       }
       const waves = simulation.waves.filter(wave => {

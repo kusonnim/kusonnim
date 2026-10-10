@@ -4,7 +4,7 @@ import { projects } from '../src/data/projects';
 import { motionConfig as config } from '../src/config/motion';
 import { NetworkSimulation } from '../src/simulation/NetworkSimulation';
 import { createSignal, inkAt, reachesEdge, signalProgress } from '../src/utils/signal';
-import { constrainPan, keepPreviewVisible, layoutPosition, panLimits, previewRadius, smoothFactor } from '../src/utils/geometry';
+import { constrainPan, keepPreviewVisible, layoutPosition, panLimits, previewRadius, restingRadius, smoothFactor } from '../src/utils/geometry';
 
 function simulate(engine: NetworkSimulation, seconds: number) {
   const started = engine.clock;
@@ -107,7 +107,7 @@ describe('motion and boundaries', () => {
       const engine = new NetworkSimulation();
       engine.resize(width, 600, true);
       simulate(engine, 1);
-      const radius = width < 600 ? config.mobileRadius : config.baseRadius;
+      const radius = restingRadius(width);
       expect(radius).toBeGreaterThan(width < 600 ? 12 : 15);
       expect(engine.nodes.every(node => node.radius === radius)).toBe(true);
       expect(engine.nodes.filter(node => node.definition.project)).toHaveLength(8);
@@ -177,7 +177,7 @@ describe('motion and boundaries', () => {
     engine.selected = 'neuron-2-2';
     simulate(engine, 3);
     const selected = engine.byId.get(engine.selected)!;
-    expect(selected.radius).toBeCloseTo(config.baseRadius * 8, 1);
+    expect(selected.radius).toBeCloseTo(restingRadius(1000) * 8, 1);
     expect(engine.nodes.some(node => Math.hypot(node.displacement.x, node.displacement.y) > 10)).toBe(true);
     for (const node of engine.nodes.filter(node => node !== selected)) {
       expect(Math.hypot(node.x - selected.x, node.y - selected.y)).toBeGreaterThan(selected.radius + node.radius - 2);

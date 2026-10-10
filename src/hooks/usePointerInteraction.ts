@@ -5,7 +5,7 @@ import { advancePanGesture, chargeAt, movedBeyondSlop, resolveGesture } from '..
 
 export function usePointerInteraction(simulation: NetworkSimulation, svgRef: RefObject<SVGSVGElement | null>) {
   const [selected, setSelected] = useState<string | null>(null);
-  const lastPointer = useRef({ x: 0, y: 0, time: 0 });
+  const lastPointer = useRef({ x: 0, y: 0, time: 0, valid: false });
   const boundsRef = useRef({ left: 0, top: 0 });
   const keyboardPress = useRef<{ id: string; started: number; key: string } | null>(null);
 
@@ -32,6 +32,9 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
   const cancel = useCallback(() => {
     simulation.gesture = null;
     keyboardPress.current = null;
+    simulation.cancelTactile();
+    simulation.pointer.active = false;
+    lastPointer.current.valid = false;
     svgRef.current?.setAttribute('data-gesture', 'idle');
   }, [simulation, svgRef]);
 
@@ -73,7 +76,8 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
     const element = (event.target as Element).closest<SVGGElement>('[data-node]');
     const id = element?.dataset.node ?? null;
     const point = getPoint(event);
-    lastPointer.current = { ...point, time: event.timeStamp };
+    lastPointer.current = { ...point, time: event.timeStamp, valid: true };
+    simulation.cancelTactile();
     simulation.gesture = { pointerId: event.pointerId, nodeId: id, started: simulation.clock, origin: point, lastPoint: { ...point }, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.setAttribute('data-gesture', id ? 'pointer-down' : 'panning');
@@ -82,13 +86,21 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
   };
 
   const onPointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    if (!event.isPrimary || (simulation.gesture && simulation.gesture.pointerId !== event.pointerId)) return;
     const point = getPoint(event);
+    const previous = lastPointer.current.valid ? { x: lastPointer.current.x, y: lastPointer.current.y } : null;
     const now = event.timeStamp;
     const elapsed = Math.max(16, now - lastPointer.current.time);
     simulation.pointer = { ...point, active: event.pointerType !== 'touch' || !!simulation.gesture, vx: (point.x - lastPointer.current.x) / elapsed * 1000, vy: (point.y - lastPointer.current.y) / elapsed * 1000 };
-    lastPointer.current = { ...point, time: now };
+    lastPointer.current = { ...point, time: now, valid: true };
     const gesture = simulation.gesture;
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (!gesture) {
+      if (event.pointerType !== 'touch' && event.buttons === 0) {
+        if (previous) simulation.stirPointer(previous, point);
+        simulation.connections.move(previous, point, simulation.pan, simulation.clock);
+      }
+      return;
+    }
     simulation.pan = advancePanGesture(gesture, point, simulation.pan, simulation.width, simulation.height);
   };
 
@@ -109,12 +121,14 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
   const onPointerEnter = (event: PointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     boundsRef.current = { left: bounds.left, top: bounds.top };
+    lastPointer.current = { ...getPoint(event), time: event.timeStamp, valid: true };
   };
 
   const onKeyDown = (id: string, event: KeyboardEvent<SVGGElement>) => {
     if (!['Enter', ' '].includes(event.key)) return;
     event.preventDefault();
     if (event.repeat || keyboardPress.current || simulation.gesture) return;
+    simulation.cancelTactile();
     keyboardPress.current = { id, started: simulation.clock, key: event.key };
     simulation.gesture = { pointerId: -1, nodeId: id, started: simulation.clock, origin: { x: 0, y: 0 }, lastPoint: { x: 0, y: 0 }, moved: false };
   };
@@ -137,9 +151,15 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
     hover: (id: string | null) => { simulation.hovered = id; },
     sceneEvents: {
       onPointerDown, onPointerMove, onPointerUp, onPointerEnter,
-      onPointerCancel: cancel,
+      onPointerCancel: () => { cancel(); simulation.pointer.active = false; lastPointer.current.valid = false; },
       onLostPointerCapture: cancel,
-      onPointerLeave: () => { simulation.pointer.active = false; simulation.hovered = null; },
+      onPointerLeave: () => {
+        simulation.pointer.active = false;
+        simulation.hovered = null;
+        simulation.cancelTactile(true);
+        lastPointer.current.valid = false;
+        if (simulation.gesture && simulation.gesture.pointerId >= 0 && simulation.gesture.mode !== 'pan') simulation.gesture.moved = true;
+      },
       onContextMenu: (event: React.MouseEvent) => event.preventDefault(),
     },
   };

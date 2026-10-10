@@ -33,6 +33,10 @@ export interface NeuronState extends Point {
   charge: number;
   activation: number;
   pointerOffset: Point;
+  stirOffset: Point;
+  stirVelocity: Point;
+  gravityOffset: Point;
+  strandOffset: Point;
   displacement: Point;
 }
 
@@ -43,6 +47,7 @@ export type Gesture = {
   origin: Point;
   lastPoint: Point;
   moved: boolean;
+  mode?: 'pending' | 'gravity' | 'pan';
 };
 
-export type GestureResult = 'cancel' | 'pan' | 'background' | 'charge' | 'activate';
+export type GestureResult = 'cancel' | 'pan' | 'background' | 'gravity' | 'charge' | 'activate';

@@ -10,7 +10,7 @@ export function ConnectionGradient({ edge }: { edge: EdgeDefinition }) {
 
 export function Connection({ edge }: { edge: EdgeDefinition }) {
   return <g pointerEvents="none" aria-hidden="true">
-    <line className="connection" data-edge={edge.id} data-source={edge.source} data-target={edge.target} />
-    <line className="signal" data-signal={edge.id} stroke={`url(#ink-${edge.id})`} opacity="0" />
+    <path fill="none" className="connection" data-edge={edge.id} data-source={edge.source} data-target={edge.target} />
+    <path fill="none" className="signal" data-signal={edge.id} stroke={`url(#ink-${edge.id})`} opacity="0" />
   </g>;
 }

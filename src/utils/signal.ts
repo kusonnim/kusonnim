@@ -11,6 +11,12 @@ export interface SignalWave {
   intensity: number;
   tail: number;
   arrived: Set<string>;
+  edgeOrigin?: string;
+  destination?: string;
+}
+
+export function createConnectionSignal(edge: EdgeDefinition, started: number): SignalWave {
+  return { ...createSignal(edge.source, started, 0), edgeOrigin: edge.id, destination: edge.target };
 }
 
 export function createSignal(origin: string, started: number, charge: number): SignalWave {
@@ -28,6 +34,11 @@ export function createSignal(origin: string, started: number, charge: number): S
 
 /** Every reachable edge is visited once per wave, rather than once per path. */
 export function reachesEdge(wave: SignalWave, edge: EdgeDefinition): boolean {
+  if (wave.edgeOrigin) {
+    if (edge.layer === wave.layer) return edge.id === wave.edgeOrigin;
+    if (edge.layer === wave.layer + 1) return edge.source === wave.destination;
+    return edge.layer > wave.layer + 1;
+  }
   return edge.layer > wave.layer || (edge.layer === wave.layer && edge.source === wave.origin);
 }
 

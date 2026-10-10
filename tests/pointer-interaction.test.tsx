@@ -9,8 +9,9 @@ import { SvgRenderer } from '../src/simulation/SvgRenderer';
 import { Connection, ConnectionGradient } from '../src/components/Connection';
 import { Neuron } from '../src/components/Neuron';
 import { network } from '../src/data/network';
-import { motionConfig as config } from '../src/config/motion';
-import { panLimits } from '../src/utils/geometry';
+import { panLimits, restingRadius } from '../src/utils/geometry';
+import { tactileConfig } from '../src/config/tactile';
+import { quadraticPoint } from '../src/utils/strandGeometry';
 
 let root: Root;
 let container: HTMLDivElement;
@@ -155,6 +156,41 @@ describe.each(['mouse', 'touch'])('%s pointer interactions', pointerType => {
     expect(simulation.selected).toBe(null);
     expect(open).not.toHaveBeenCalled();
   });
+
+  it('uses a stationary background hold for gravity, without closing a preview or sending a signal', () => {
+    pointer('pointerdown', node(), 400, 200, pointerType);
+    pointer('pointerup', svg, 400, 200, pointerType);
+    pointer('pointerdown', svg, 420, 300, pointerType);
+    for (let i = 1; i <= 120; i++) simulation.step(i * 1000 / 60, 1 / 60);
+    expect(simulation.gesture?.mode).toBe('gravity');
+    expect(simulation.gravityStrength).toBeGreaterThan(0.8);
+    expect(simulation.pan).toEqual({ x: 0, y: 0 });
+    pointer('pointerup', svg, 420, 300, pointerType);
+    expect(simulation.selected).toBe('neuron-2-2');
+    expect(simulation.waves).toHaveLength(0);
+    expect(simulation.gesture).toBe(null);
+  });
+
+  it('does not activate gravity or grab strands while panning, even after a long hold', () => {
+    pointer('pointerdown', svg, 500, 300, pointerType);
+    pointer('pointermove', svg, 530, 300, pointerType);
+    simulation.step(2000, 0.05);
+    expect(simulation.pan).toEqual({ x: 30, y: 0 });
+    expect(simulation.gravityStrength).toBe(0);
+    expect(simulation.connections.grabbedCount).toBe(0);
+    expect(simulation.waves).toHaveLength(0);
+    pointer('pointerup', svg, 530, 300, pointerType);
+  });
+
+  it('cancels gravity rather than starting a pan from the same gravity gesture', () => {
+    pointer('pointerdown', svg, 500, 300, pointerType);
+    simulation.step(tactileConfig.gravityWell.holdThreshold + 1, 0.05);
+    expect(simulation.gesture?.mode).toBe('gravity');
+    pointer('pointermove', svg, 560, 300, pointerType);
+    expect(simulation.pan).toEqual({ x: 0, y: 0 });
+    pointer('pointerup', svg, 560, 300, pointerType);
+    expect(simulation.waves).toHaveLength(0);
+  });
 });
 
 it('ignores a secondary touch while a primary drag is captured', () => {
@@ -171,7 +207,7 @@ it('keeps hover working and hit circles matched to rendered circles during all s
   expect(simulation.hovered).toBe('neuron-2-2');
   const renderer = new SvgRenderer(svg, simulation);
   renderer.draw();
-  expect(node().querySelector('[data-hit]')?.getAttribute('r')).toBe(String(config.baseRadius.toFixed(2)));
+  expect(node().querySelector('[data-hit]')?.getAttribute('r')).toBe(restingRadius().toFixed(2));
   for (const selected of [null, 'neuron-2-2']) {
     simulation.selected = selected;
     simulation.step(simulation.clock + 100, 0.05);
@@ -180,4 +216,60 @@ it('keeps hover working and hit circles matched to rendered circles during all s
       expect(element.querySelector('[data-hit]')?.getAttribute('r')).toBe(element.querySelector('[data-ink]')?.getAttribute('r'));
     }
   }
+});
+
+it('touches, bends and releases a strand without any button press, using matching ink paths', () => {
+  const state = simulation.connections.states[0];
+  const contact = quadraticPoint(state.geometry.start, state.geometry.control, state.geometry.end, 0.5);
+  pointer('pointermove', svg, contact.x, contact.y - 12, 'mouse');
+  pointer('pointermove', svg, contact.x, contact.y, 'mouse');
+  expect(state.grab).not.toBe(null);
+  expect(simulation.gesture).toBe(null);
+  pointer('pointermove', svg, contact.x, contact.y + 20, 'mouse');
+  for (let i = 1; i <= 10; i++) simulation.step(i * 1000 / 60, 1 / 60);
+  const renderer = new SvgRenderer(svg, simulation);
+  renderer.draw();
+  const path = svg.querySelector(`[data-edge="${state.definition.id}"]`)!;
+  const ink = svg.querySelector(`[data-signal="${state.definition.id}"]`)!;
+  expect(path.tagName.toLowerCase()).toBe('path');
+  expect(path.getAttribute('data-grabbed')).toBe('true');
+  expect(Number(path.getAttribute('data-bend'))).toBeGreaterThan(5);
+  expect(path.getAttribute('d')).toBe(ink.getAttribute('d'));
+  pointer('pointermove', svg, contact.x, contact.y + 36, 'mouse');
+  expect(state.grab).toBe(null);
+  expect(simulation.waves.some(wave => wave.edgeOrigin === state.definition.id)).toBe(true);
+  simulation.step(simulation.clock + 50, 0.05);
+  renderer.draw();
+  expect(path.getAttribute('d')).toBe(ink.getAttribute('d'));
+  expect(ink.getAttribute('opacity')).toBe('1');
+  expect(simulation.selected).toBe(null);
+});
+
+it('clears temporary grabs on cancellation without navigation or a release signal', () => {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  const state = simulation.connections.states[0];
+  const contact = quadraticPoint(state.geometry.start, state.geometry.control, state.geometry.end, 0.5);
+  pointer('pointermove', svg, contact.x, contact.y - 12, 'mouse');
+  pointer('pointermove', svg, contact.x, contact.y, 'mouse');
+  expect(state.grab).not.toBe(null);
+  pointer('pointercancel', svg, contact.x, contact.y, 'mouse');
+  expect(simulation.connections.grabbedCount).toBe(0);
+  expect(simulation.waves).toHaveLength(0);
+  expect(open).not.toHaveBeenCalled();
+});
+
+it('gives neuron presses priority over pending strand pulls and background gravity', () => {
+  const state = simulation.connections.states[0];
+  const contact = quadraticPoint(state.geometry.start, state.geometry.control, state.geometry.end, 0.5);
+  pointer('pointermove', svg, contact.x, contact.y - 12, 'mouse');
+  pointer('pointermove', svg, contact.x, contact.y, 'mouse');
+  expect(state.grab).not.toBe(null);
+  pointer('pointerdown', node(), 400, 200, 'mouse');
+  expect(simulation.connections.grabbedCount).toBe(0);
+  simulation.step(1600, 0.05);
+  expect(simulation.gravityStrength).toBe(0);
+  pointer('pointerup', svg, 400, 200, 'mouse');
+  expect(simulation.selected).toBe(null);
+  expect(simulation.waves).toHaveLength(1);
+  expect(simulation.waves[0].edgeOrigin).toBeUndefined();
 });

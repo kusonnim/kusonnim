@@ -1,0 +1,36 @@
+/** Distances are CSS pixels in the network viewport; damping rates are per second. */
+export const tactileConfig = {
+  neuronSizeMultiplier: 1.25,
+  gravityWell: {
+    holdThreshold: 350,
+    buildupDuration: 900,
+    influenceRadius: 160,
+    maxStrength: 1,
+    maxDisplacement: 48,
+    smoothing: 5,
+  },
+  pointerStirring: {
+    strength: 1,
+    damping: 6,
+    influenceRadius: 120,
+    impulseGain: 8,
+    maxVelocity: 110,
+    maxDisplacement: 22,
+    returnSmoothing: 3.2,
+  },
+  connectionGrab: {
+    maxGrabDistance: 35,
+    hitTolerance: 5,
+    releaseCooldown: 180,
+    rearmMargin: 3,
+    endpointInfluence: 0.25,
+    maxEndpointDisplacement: 24,
+    endpointSmoothing: 8,
+    stretchSmoothing: 12,
+    releaseSmoothing: 18,
+    maxControlOffset: 105,
+    contactEndInset: 0.08,
+    curveSegments: 16,
+    minimumPointerMovement: 0.05,
+  },
+};

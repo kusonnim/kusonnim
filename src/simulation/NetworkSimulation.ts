@@ -1,10 +1,13 @@
 import { motionConfig as config } from '../config/motion';
+import { tactileConfig } from '../config/tactile';
 import { network } from '../data/network';
-import type { Gesture, NeuronState, Point } from '../types/network';
+import type { EdgeDefinition, Gesture, NeuronState, Point } from '../types/network';
 import { chargeAt } from '../utils/gesture';
-import { clamp, constrainPan, keepPreviewVisible, layoutPosition, lerp, previewRadius, smoothFactor } from '../utils/geometry';
-import { createSignal, signalFinished } from '../utils/signal';
+import { clamp, constrainPan, keepPreviewVisible, layoutPosition, lerp, limitVector, previewRadius, restingRadius, smoothFactor } from '../utils/geometry';
+import { createConnectionSignal, createSignal, signalFinished } from '../utils/signal';
 import type { SignalWave } from '../utils/signal';
+import { ConnectionInteraction } from './ConnectionInteraction';
+import { projectToSegment } from '../utils/strandGeometry';
 
 /** Pure simulation; React owns semantic state, and the renderer owns SVG writes. */
 export class NetworkSimulation {
@@ -18,12 +21,16 @@ export class NetworkSimulation {
   reducedMotion = false;
   waves: SignalWave[] = [];
   clock = 0;
+  gravityStrength = 0;
   nodes: NeuronState[] = network.neurons.map(definition => ({
-    definition, base: { x: 0, y: 0 }, x: 0, y: 0, radius: config.baseRadius,
+    definition, base: { x: 0, y: 0 }, x: 0, y: 0, radius: restingRadius(),
     expansion: 0, charge: 0, activation: 0,
     pointerOffset: { x: 0, y: 0 }, displacement: { x: 0, y: 0 },
+    stirOffset: { x: 0, y: 0 }, stirVelocity: { x: 0, y: 0 },
+    gravityOffset: { x: 0, y: 0 }, strandOffset: { x: 0, y: 0 },
   }));
   byId = new Map(this.nodes.map(node => [node.definition.id, node]));
+  connections = new ConnectionInteraction(this.byId, edge => this.emitConnection(edge));
 
   resize(width: number, height: number, initial = false) {
     this.width = width;
@@ -33,6 +40,7 @@ export class NetworkSimulation {
       node.base = layoutPosition(node.definition.layer, node.definition.row, width, height);
       if (initial) { node.x = node.base.x; node.y = node.base.y; }
     }
+    this.connections.updateGeometry();
   }
 
   emit(id: string, charge = 0) {
@@ -41,13 +49,42 @@ export class NetworkSimulation {
     node.activation = Math.min(1.4, node.activation + 0.72 + charge * 0.5);
     if (node.definition.layer === 5) return;
     const wave = createSignal(id, this.clock, charge);
-    // At extreme input rates, aggregate a new impulse at its origin, preserving
-    // every earlier wave's timeline. Normal interactions remain independent.
-    if (this.waves.length >= config.maxConcurrentSignals - (this.nodes.length - 2)) {
-      const existing = this.waves.slice().reverse().find(item => item.origin === id);
+    this.queueWave(wave);
+  }
+
+  emitConnection(edge: EdgeDefinition) {
+    const source = this.byId.get(edge.source)!;
+    source.activation = Math.min(1.4, source.activation + 0.4);
+    this.queueWave(createConnectionSignal(edge, this.clock));
+  }
+
+  private queueWave(wave: SignalWave) {
+    // Reserve a place for each distinct seed (21 neurons + 85 edges). At extreme
+    // rates, only identical seeds aggregate; earlier timelines never reset.
+    const seedCount = this.nodes.length - 1 + network.edges.length;
+    if (this.waves.length >= config.maxConcurrentSignals - seedCount + 1) {
+      const existing = this.waves.slice().reverse().find(item => item.origin === wave.origin && item.edgeOrigin === wave.edgeOrigin);
       if (existing) { existing.intensity = Math.min(config.chargeMaxSignalIntensity, existing.intensity + 0.2); return; }
     }
     this.waves.push(wave);
+  }
+
+  cancelTactile(pointerLeft = false) {
+    this.connections.cancel(this.clock, pointerLeft);
+  }
+
+  stirPointer(from: Point, to: Point) {
+    if (this.reducedMotion) return;
+    const settings = tactileConfig.pointerStirring;
+    for (const node of this.nodes) {
+      const screenPoint = { x: node.x + this.pan.x, y: node.y + this.pan.y };
+      const contact = projectToSegment(screenPoint, from, to);
+      const falloff = Math.max(0, 1 - contact.distance / settings.influenceRadius) ** 2;
+      const contactFalloff = Math.min(1, contact.distance / (node.radius * 2));
+      const gain = settings.impulseGain * settings.strength * falloff * contactFalloff * (1 - node.expansion * 0.95);
+      node.stirVelocity = limitVector({ x: node.stirVelocity.x + (to.x - from.x) * gain,
+        y: node.stirVelocity.y + (to.y - from.y) * gain }, settings.maxVelocity);
+    }
   }
 
   step(now: number, dt: number) {
@@ -57,14 +94,22 @@ export class NetworkSimulation {
     const positionFactor = slow ? 1 : smoothFactor(config.nodeReturnSmoothing, dt);
     const pointerFactor = smoothFactor(config.pointerSmoothing, dt);
     const expansionFactor = slow ? 1 : smoothFactor(config.expansionSmoothing, dt);
-    const baseRadius = this.width < 600 ? config.mobileRadius : config.baseRadius;
+    const baseRadius = restingRadius(this.width);
     const maxPreview = previewRadius(baseRadius, this.width, this.height);
     const targets: Point[] = [];
     const time = now / 1000 * config.idleSpeed;
+    const gravity = tactileConfig.gravityWell;
+    const backgroundHold = this.gesture && this.gesture.nodeId === null && !this.gesture.moved && this.gesture.mode !== 'pan';
+    const elapsedHold = backgroundHold ? now - this.gesture!.started : 0;
+    if (backgroundHold && elapsedHold >= gravity.holdThreshold) this.gesture!.mode = 'gravity';
+    const gravityTarget = backgroundHold ? clamp((elapsedHold - gravity.holdThreshold) / gravity.buildupDuration, 0, 1) * gravity.maxStrength : 0;
+    this.gravityStrength = lerp(this.gravityStrength, gravityTarget, smoothFactor(gravity.smoothing, dt));
+    const endpointForces = this.connections.step(dt, this.pan, slow);
 
     for (const wave of this.waves) {
       for (const node of this.nodes) {
         if (node.definition.layer <= wave.layer || wave.arrived.has(node.definition.id)) continue;
+        if (wave.edgeOrigin && node.definition.layer === wave.layer + 1 && node.definition.id !== wave.destination) continue;
         if (now >= wave.started + (node.definition.layer - wave.layer) * wave.duration) {
           wave.arrived.add(node.definition.id);
           node.activation = Math.min(1.4, node.activation + wave.intensity * 0.65);
@@ -98,12 +143,36 @@ export class NetworkSimulation {
       // Ease the disturbance inside the circle's immediate contact region so
       // stronger movement does not make a neuron dodge a click or long press.
       const contactFalloff = Math.min(1, distance / (node.radius * 2));
-      const influence = this.pointer.active && !slow ? Math.max(0, 1 - distance / config.pointerRadius) ** 2 * config.mouseInfluence * (1 - node.expansion * 0.85) * contactFalloff : 0;
+      const influence = this.pointer.active && !slow && !this.gesture ? Math.max(0, 1 - distance / config.pointerRadius) ** 2 * config.mouseInfluence * (1 - node.expansion * 0.85) * contactFalloff : 0;
       const px = (dx / Math.max(1, distance) * config.pointerMaxOffset + clamp(this.pointer.vx * config.pointerVelocityInfluence, -config.pointerMaxVelocityOffset, config.pointerMaxVelocityOffset)) * influence;
       const py = (dy / Math.max(1, distance) * config.pointerMaxOffset + clamp(this.pointer.vy * config.pointerVelocityInfluence, -config.pointerMaxVelocityOffset, config.pointerMaxVelocityOffset)) * influence;
       node.pointerOffset.x = lerp(node.pointerOffset.x, px, pointerFactor);
       node.pointerOffset.y = lerp(node.pointerOffset.y, py, pointerFactor);
-      let target = { x: node.base.x + idleX + node.pointerOffset.x, y: node.base.y + idleY + node.pointerOffset.y };
+      const stirring = tactileConfig.pointerStirring;
+      const velocityDecay = Math.exp(-stirring.damping * dt);
+      const travel = (1 - velocityDecay) / stirring.damping;
+      const returnFactor = Math.exp(-stirring.returnSmoothing * dt);
+      node.stirOffset = slow ? { x: 0, y: 0 } : limitVector({ x: (node.stirOffset.x + node.stirVelocity.x * travel) * returnFactor,
+        y: (node.stirOffset.y + node.stirVelocity.y * travel) * returnFactor }, stirring.maxDisplacement);
+      node.stirVelocity = slow ? { x: 0, y: 0 } : { x: node.stirVelocity.x * velocityDecay, y: node.stirVelocity.y * velocityDecay };
+      let gravityOffset = { x: 0, y: 0 };
+      if (backgroundHold && this.gravityStrength > 0) {
+        const gx = this.gesture!.origin.x - this.pan.x - node.base.x;
+        const gy = this.gesture!.origin.y - this.pan.y - node.base.y;
+        const distance = Math.hypot(gx, gy);
+        const falloff = Math.max(0, 1 - distance / gravity.influenceRadius);
+        const amount = Math.min(gravity.maxDisplacement, Math.max(0, distance - node.radius * 1.4)) * falloff * this.gravityStrength * (1 - node.expansion * 0.95);
+        gravityOffset = { x: gx / Math.max(1, distance) * amount, y: gy / Math.max(1, distance) * amount };
+      }
+      const gravityFactor = slow ? 1 : smoothFactor(gravity.smoothing, dt);
+      node.gravityOffset.x = lerp(node.gravityOffset.x, gravityOffset.x, gravityFactor);
+      node.gravityOffset.y = lerp(node.gravityOffset.y, gravityOffset.y, gravityFactor);
+      const strandTarget = endpointForces.get(node.definition.id) ?? { x: 0, y: 0 };
+      const strandFactor = slow ? 1 : smoothFactor(tactileConfig.connectionGrab.endpointSmoothing, dt);
+      node.strandOffset.x = lerp(node.strandOffset.x, strandTarget.x * (1 - node.expansion * 0.95), strandFactor);
+      node.strandOffset.y = lerp(node.strandOffset.y, strandTarget.y * (1 - node.expansion * 0.95), strandFactor);
+      let target = { x: node.base.x + idleX + node.pointerOffset.x + node.stirOffset.x + node.gravityOffset.x + node.strandOffset.x,
+        y: node.base.y + idleY + node.pointerOffset.y + node.stirOffset.y + node.gravityOffset.y + node.strandOffset.y };
       if (node.expansion > 0.001) {
         const compensated = keepPreviewVisible(target, node.radius, this.pan, this.width, this.height);
         target = { x: lerp(target.x, compensated.x, node.expansion), y: lerp(target.y, compensated.y, node.expansion) };
@@ -158,6 +227,7 @@ export class NetworkSimulation {
       node.x = lerp(node.x, targets[i].x + node.displacement.x, positionFactor);
       node.y = lerp(node.y, targets[i].y + node.displacement.y, positionFactor);
     }
+    this.connections.updateGeometry();
     this.pointer.vx *= Math.exp(-6 * dt);
     this.pointer.vy *= Math.exp(-6 * dt);
   }

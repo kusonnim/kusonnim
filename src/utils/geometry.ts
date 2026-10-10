@@ -1,9 +1,20 @@
 import { motionConfig as config } from '../config/motion';
+import { tactileConfig } from '../config/tactile';
 import type { Point } from '../types/network';
 
 export const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const smoothFactor = (rate: number, seconds: number) => 1 - Math.exp(-rate * seconds);
+
+export function limitVector(point: Point, maximum: number): Point {
+  const length = Math.hypot(point.x, point.y);
+  const scale = length > maximum ? maximum / length : 1;
+  return { x: point.x * scale, y: point.y * scale };
+}
+
+export function restingRadius(width = 1000): number {
+  return (width < 600 ? config.mobileRadius : config.baseRadius) * tactileConfig.neuronSizeMultiplier;
+}
 
 export function layoutPosition(layer: number, row: number, width: number, height: number): Point {
   const sceneWidth = Math.max(config.minimumNetworkWidth, width);
