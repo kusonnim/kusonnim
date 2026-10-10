@@ -1,0 +1,119 @@
+@font-face {
+  font-family: 'Invitation';
+  src: local('Palatino Linotype'), local('Book Antiqua'), local('Palatino');
+  font-display: swap;
+}
+
+:root {
+  font-family: 'Invitation', 'Iowan Old Style', 'Baskerville', Georgia, serif;
+  color: #3b2c21;
+  background: #e8d6b4;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; width: 100%; height: 100%; min-width: 280px; }
+body { overflow: hidden; }
+button, a, svg { -webkit-tap-highlight-color: transparent; }
+
+.invitation {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100dvh;
+  min-height: 280px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 48% 42%, #f5ead5aa 0%, #f1e5ce55 36%, transparent 76%),
+    radial-gradient(ellipse at 95% 100%, #b6904e16, transparent 65%),
+    linear-gradient(118deg, #e6d2ae, #eddfc2 42%, #e7d4b3);
+}
+
+.invitation::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url('/paper.svg') repeat;
+  mix-blend-mode: multiply;
+  opacity: .29;
+  pointer-events: none;
+}
+
+.invitation-heading {
+  position: absolute;
+  inset: clamp(20px, 4.4vh, 50px) 24px auto;
+  text-align: center;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+}
+
+.heading-mark { width: 65px; height: 23px; color: #76583f; opacity: .8; margin-bottom: 6px; }
+h1 { margin: 0; font-size: clamp(29px, 3.1vw, 43px); line-height: 1.2; font-weight: 400; letter-spacing: .018em; }
+.invitation-heading p { margin: 13px 0 0; font-size: clamp(13px, 1.2vw, 16px); line-height: 1.5; font-style: italic; color: #76583f; letter-spacing: .025em; }
+.heading-rule { width: 142px; margin: 20px auto 0; height: 1px; position: relative; background: linear-gradient(90deg, transparent, #92704e66, transparent); }
+.heading-rule span { position: absolute; width: 4px; height: 4px; background: #92704e; transform: translate(-50%, -50%) rotate(45deg); left: 50%; top: 0; }
+
+.ornaments { position: absolute; inset: 0; z-index: 0; pointer-events: none; color: #76583f; opacity: .66; }
+.corner { position: absolute; width: clamp(95px, 12vw, 168px); height: auto; }
+.north-west { left: 15px; top: 15px; }
+.north-east { right: 15px; top: 15px; transform: scaleX(-1); }
+.south-west { left: 15px; bottom: 15px; transform: scaleY(-1); }
+.south-east { right: 15px; bottom: 15px; transform: scale(-1); }
+
+.network-viewport { position: absolute; inset: clamp(157px, 22vh, 190px) 0 35px; z-index: 1; }
+.network { width: 100%; height: 100%; display: block; overflow: hidden; touch-action: none; user-select: none; cursor: grab; }
+.network[data-gesture='panning'] { cursor: grabbing; }
+.neuron { cursor: pointer; outline: none; }
+.connection { stroke: #765c43; stroke-width: .85; opacity: .28; }
+.signal { stroke-width: 1.7; stroke-linecap: round; }
+.focus-ring { stroke: #3b2c21; stroke-width: 1.25; stroke-dasharray: 3 4; opacity: 0; }
+.neuron:focus-visible .focus-ring { opacity: .9; }
+.project-label { fill: #3b2c21; font-family: inherit; font-size: 17px; letter-spacing: .02em; paint-order: stroke; stroke: #eddfc2; stroke-width: 4px; stroke-linejoin: round; }
+.selected-label { font-size: 19px; }
+.hover-label { opacity: 0; transition: opacity .25s ease; }
+.preview-content { width: 100%; height: 100%; overflow: hidden; background: #30271f; }
+.preview-content img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.preview-missing { display: flex; justify-content: center; align-items: center; padding: 20px; background: radial-gradient(circle at 50% 42%, #eadabc, #d2bb92); color: #3b2c21; text-align: center; font-size: 20px; font-style: italic; }
+
+@media (max-width: 600px) {
+  .invitation-heading { top: 30px; left: 40px; right: 40px; }
+  .heading-mark { width: 51px; height: 18px; margin-bottom: 8px; }
+  h1 { font-size: clamp(27px, 7vw, 34px); }
+  .invitation-heading p { max-width: 270px; margin: 12px auto 0; font-size: 13px; }
+  .heading-rule { margin-top: 17px; width: 110px; }
+  .corner { width: 95px; }
+  .north-west, .south-west { left: 7px; }
+  .north-east, .south-east { right: 7px; }
+  .north-west, .north-east { top: 7px; }
+  .south-west, .south-east { bottom: 7px; }
+  .network-viewport { top: 170px; bottom: 30px; }
+  .project-label { font-size: 15px; }
+  .selected-label { font-size: 17px; }
+  .connection { opacity: .3; }
+}
+
+@media (max-height: 520px) and (min-width: 601px) {
+  .invitation-heading { top: 15px; }
+  .heading-mark { display: none; }
+  h1 { font-size: 30px; }
+  .invitation-heading p { margin-top: 5px; font-size: 13px; }
+  .heading-rule { margin-top: 10px; }
+  .network-viewport { top: 105px; bottom: 15px; }
+  .corner { width: 90px; }
+}
+
+@media (max-height: 450px) and (max-width: 600px) {
+  .invitation-heading { top: 12px; }
+  .heading-mark, .heading-rule { display: none; }
+  h1 { font-size: 25px; }
+  .invitation-heading p { margin-top: 5px; }
+  .network-viewport { top: 95px; bottom: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hover-label { transition: none; }
+}
