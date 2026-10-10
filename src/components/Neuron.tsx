@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import type { NeuronDefinition } from '../types/network';
 import { palette } from '../config/theme';
+import { motionConfig } from '../config/motion';
 import { ProjectPreview } from './ProjectPreview';
 
 interface Props {
@@ -20,9 +21,9 @@ export function Neuron({ node, selected, onKeyDown, onKeyUp, onBlur, onHover }: 
     onKeyDown={onKeyDown} onKeyUp={onKeyUp} onBlur={onBlur}
     onPointerEnter={event => { if (event.pointerType !== 'touch') onHover(true); }}
     onPointerLeave={() => onHover(false)} onFocus={() => onHover(true)}>
-    <circle data-hit r="22" fill="transparent" />
-    <circle data-ink r="15" fill={node.project ? palette.projectNode : palette.ordinaryNode} pointerEvents="none" />
-    <circle data-focus className="focus-ring" r="21" fill="none" pointerEvents="none" />
+    <circle data-hit r={motionConfig.baseRadius} fill="transparent" />
+    <circle data-ink r={motionConfig.baseRadius} fill={node.project ? palette.projectNode : palette.ordinaryNode} pointerEvents="none" />
+    <circle data-focus className="focus-ring" r={motionConfig.baseRadius + 6} fill="none" pointerEvents="none" />
     {node.project && <ProjectPreview project={node.project} nodeId={node.id} />}
   </g>;
 }

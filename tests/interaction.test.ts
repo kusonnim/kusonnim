@@ -3,7 +3,7 @@ import { chargeAt, movedBeyondSlop, resolveGesture } from '../src/utils/gesture'
 import { motionConfig as config } from '../src/config/motion';
 import type { Gesture } from '../src/types/network';
 
-const gesture: Gesture = { pointerId: 1, nodeId: 'neuron-2-2', started: 0, origin: { x: 0, y: 0 }, panOrigin: { x: 0, y: 0 }, moved: false };
+const gesture: Gesture = { pointerId: 1, nodeId: 'neuron-2-2', started: 0, origin: { x: 0, y: 0 }, lastPoint: { x: 0, y: 0 }, moved: false };
 
 describe('gesture transitions', () => {
   it('distinguishes short activation from long-press release', () => {

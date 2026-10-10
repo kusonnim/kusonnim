@@ -37,8 +37,11 @@ These instructions are documentation only; they do not appear in the interface.
 
 ## Configuration
 
-- `src/config/motion.ts`: mouse influence (0.62), signal speed (0.15), preview
-  scale (8), charging curve and cap, animation smoothing, collisions and pan bounds.
+- `src/config/motion.ts`: mouse influence (0.78), resting radii (17 desktop / 14
+  mobile), horizontal/vertical spacing scales (0.94 / 0.92), signal speed (0.15),
+  preview scale (8), charging curve and cap, animation smoothing, collisions and
+  pan bounds. Pointer proximity strength, velocity gain and velocity cap are
+  independent of pointer smoothing. Hit circles track the exact rendered radius.
 - `src/config/theme.ts` and `src/styles/global.css`: ink, parchment and typography.
 - `src/data/projects.ts`: fixed project assignments, URLs, image paths and crop
   focus. Add a project only to an available hidden neuron. Invalid or duplicate
@@ -75,6 +78,10 @@ timelines remain intact. The visual wave count and intensity are bounded.
 The automated suite covers topology, assignments, charging and gesture
 classification, signal direction and arrivals, concurrent signals, collision
 return, reduced motion, pointer coordinates, mobile reachability and boundaries.
+Mouse and touch pointer-event integration tests cover all four pan boundaries,
+continued outward dragging and immediate reversal, repeated changes of direction,
+gesture cancellation, clicks, charged releases, previews and navigation. Panning
+consumes each pointer delta even when clamped, so there is no accumulated overscroll.
 Browser checks cover screenshot loading, selection, keyboard navigation,
 long-press release, signals and bounded panning. Real device touch behavior still
 needs hands-on verification; the same pointer-event path supports mouse and touch.

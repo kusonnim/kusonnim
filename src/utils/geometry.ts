@@ -9,9 +9,11 @@ export function layoutPosition(layer: number, row: number, width: number, height
   const sceneWidth = Math.max(config.minimumNetworkWidth, width);
   const horizontalInset = Math.max(44, Math.min(100, sceneWidth * 0.07));
   const verticalInset = Math.max(48, Math.min(86, height * 0.135));
+  const horizontalSpan = (sceneWidth - horizontalInset * 2) * config.horizontalSpacingScale;
+  const verticalSpan = (height - verticalInset * 2) * config.verticalSpacingScale;
   return {
-    x: (width - sceneWidth) / 2 + horizontalInset + layer * (sceneWidth - horizontalInset * 2) / 5,
-    y: layer === 0 || layer === 5 ? height / 2 : verticalInset + (row - 1) * (height - verticalInset * 2) / 4,
+    x: width / 2 + (layer / 5 - 0.5) * horizontalSpan,
+    y: layer === 0 || layer === 5 ? height / 2 : height / 2 + ((row - 1) / 4 - 0.5) * verticalSpan,
   };
 }
 

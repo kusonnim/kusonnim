@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, RefObject } from 'react';
 import type { NetworkSimulation } from '../simulation/NetworkSimulation';
-import { chargeAt, movedBeyondSlop, resolveGesture } from '../utils/gesture';
-import { constrainPan } from '../utils/geometry';
+import { advancePanGesture, chargeAt, movedBeyondSlop, resolveGesture } from '../utils/gesture';
 
 export function usePointerInteraction(simulation: NetworkSimulation, svgRef: RefObject<SVGSVGElement | null>) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -73,7 +72,9 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
     boundsRef.current = { left: bounds.left, top: bounds.top };
     const element = (event.target as Element).closest<SVGGElement>('[data-node]');
     const id = element?.dataset.node ?? null;
-    simulation.gesture = { pointerId: event.pointerId, nodeId: id, started: simulation.clock, origin: getPoint(event), panOrigin: { ...simulation.pan }, moved: false };
+    const point = getPoint(event);
+    lastPointer.current = { ...point, time: event.timeStamp };
+    simulation.gesture = { pointerId: event.pointerId, nodeId: id, started: simulation.clock, origin: point, lastPoint: { ...point }, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.setAttribute('data-gesture', id ? 'pointer-down' : 'panning');
     element?.focus({ preventScroll: true });
@@ -88,10 +89,7 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
     lastPointer.current = { ...point, time: now };
     const gesture = simulation.gesture;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
-    gesture.moved ||= movedBeyondSlop(gesture.origin, point);
-    if (gesture.moved && gesture.nodeId === null) {
-      simulation.pan = constrainPan({ x: gesture.panOrigin.x + point.x - gesture.origin.x, y: gesture.panOrigin.y + point.y - gesture.origin.y }, simulation.width, simulation.height);
-    }
+    simulation.pan = advancePanGesture(gesture, point, simulation.pan, simulation.width, simulation.height);
   };
 
   const onPointerUp = (event: PointerEvent<SVGSVGElement>) => {
@@ -118,7 +116,7 @@ export function usePointerInteraction(simulation: NetworkSimulation, svgRef: Ref
     event.preventDefault();
     if (event.repeat || keyboardPress.current || simulation.gesture) return;
     keyboardPress.current = { id, started: simulation.clock, key: event.key };
-    simulation.gesture = { pointerId: -1, nodeId: id, started: simulation.clock, origin: { x: 0, y: 0 }, panOrigin: { ...simulation.pan }, moved: false };
+    simulation.gesture = { pointerId: -1, nodeId: id, started: simulation.clock, origin: { x: 0, y: 0 }, lastPoint: { x: 0, y: 0 }, moved: false };
   };
 
   const onKeyUp = (id: string, event: KeyboardEvent<SVGGElement>) => {

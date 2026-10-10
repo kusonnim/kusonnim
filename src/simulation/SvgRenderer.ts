@@ -64,7 +64,7 @@ export class SvgRenderer {
       elements.group.setAttribute('data-phase', node.expansion > 0.99 ? 'selected' : node.expansion > 0.01 ? (simulation.selected === node.definition.id ? 'expanding' : 'collapsing') : 'idle');
       elements.circle.setAttribute('r', radius);
       elements.circle.setAttribute('fill', mixInk(isProject ? palette.projectNode : palette.ordinaryNode, node.activation * 0.65 + node.charge * 0.8));
-      elements.hit.setAttribute('r', number(Math.max(22, node.radius)));
+      elements.hit.setAttribute('r', radius);
       elements.focus.setAttribute('r', number(node.radius + 6));
       elements.clip?.setAttribute('r', number(Math.max(0, node.radius - 0.8)));
       if (elements.image) {

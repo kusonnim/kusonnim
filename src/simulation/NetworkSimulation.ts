@@ -95,9 +95,12 @@ export class NetworkSimulation {
       const dx = node.x + this.pan.x - this.pointer.x;
       const dy = node.y + this.pan.y - this.pointer.y;
       const distance = Math.hypot(dx, dy);
-      const influence = this.pointer.active && !slow ? Math.max(0, 1 - distance / config.pointerRadius) ** 2 * config.mouseInfluence * (1 - node.expansion * 0.85) : 0;
-      const px = (dx / Math.max(1, distance) * config.pointerMaxOffset + clamp(this.pointer.vx * 0.02, -12, 12)) * influence;
-      const py = (dy / Math.max(1, distance) * config.pointerMaxOffset + clamp(this.pointer.vy * 0.02, -12, 12)) * influence;
+      // Ease the disturbance inside the circle's immediate contact region so
+      // stronger movement does not make a neuron dodge a click or long press.
+      const contactFalloff = Math.min(1, distance / (node.radius * 2));
+      const influence = this.pointer.active && !slow ? Math.max(0, 1 - distance / config.pointerRadius) ** 2 * config.mouseInfluence * (1 - node.expansion * 0.85) * contactFalloff : 0;
+      const px = (dx / Math.max(1, distance) * config.pointerMaxOffset + clamp(this.pointer.vx * config.pointerVelocityInfluence, -config.pointerMaxVelocityOffset, config.pointerMaxVelocityOffset)) * influence;
+      const py = (dy / Math.max(1, distance) * config.pointerMaxOffset + clamp(this.pointer.vy * config.pointerVelocityInfluence, -config.pointerMaxVelocityOffset, config.pointerMaxVelocityOffset)) * influence;
       node.pointerOffset.x = lerp(node.pointerOffset.x, px, pointerFactor);
       node.pointerOffset.y = lerp(node.pointerOffset.y, py, pointerFactor);
       let target = { x: node.base.x + idleX + node.pointerOffset.x, y: node.base.y + idleY + node.pointerOffset.y };

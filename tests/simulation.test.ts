@@ -4,7 +4,7 @@ import { projects } from '../src/data/projects';
 import { motionConfig as config } from '../src/config/motion';
 import { NetworkSimulation } from '../src/simulation/NetworkSimulation';
 import { createSignal, inkAt, reachesEdge, signalProgress } from '../src/utils/signal';
-import { constrainPan, keepPreviewVisible, layoutPosition, panLimits, previewRadius } from '../src/utils/geometry';
+import { constrainPan, keepPreviewVisible, layoutPosition, panLimits, previewRadius, smoothFactor } from '../src/utils/geometry';
 
 function simulate(engine: NetworkSimulation, seconds: number) {
   const started = engine.clock;
@@ -84,6 +84,66 @@ describe('signal propagation', () => {
 });
 
 describe('motion and boundaries', () => {
+  it('subtly reduces both spacing dimensions while preserving a centered ordered layout', () => {
+    for (const [width, height] of [[1280, 600], [876, 608], [390, 500]]) {
+      const sceneWidth = Math.max(config.minimumNetworkWidth, width);
+      const oldHorizontalSpan = sceneWidth - Math.max(44, Math.min(100, sceneWidth * 0.07)) * 2;
+      const oldVerticalSpan = height - Math.max(48, Math.min(86, height * 0.135)) * 2;
+      const input = layoutPosition(0, 1, width, height);
+      const output = layoutPosition(5, 1, width, height);
+      const top = layoutPosition(2, 1, width, height);
+      const bottom = layoutPosition(2, 5, width, height);
+      expect(output.x - input.x).toBeCloseTo(oldHorizontalSpan * config.horizontalSpacingScale);
+      expect(bottom.y - top.y).toBeCloseTo(oldVerticalSpan * config.verticalSpacingScale);
+      expect(output.x - input.x).toBeLessThan(oldHorizontalSpan);
+      expect(bottom.y - top.y).toBeLessThan(oldVerticalSpan);
+      expect((input.x + output.x) / 2).toBe(width / 2);
+      expect((top.y + bottom.y) / 2).toBe(height / 2);
+      expect(layoutPosition(2, 2, width, height).x).toBeLessThan(layoutPosition(3, 2, width, height).x);
+    }
+  });
+  it('increases every resting circle on desktop and mobile without changing node colors or roles', () => {
+    for (const width of [1280, 390]) {
+      const engine = new NetworkSimulation();
+      engine.resize(width, 600, true);
+      simulate(engine, 1);
+      const radius = width < 600 ? config.mobileRadius : config.baseRadius;
+      expect(radius).toBeGreaterThan(width < 600 ? 12 : 15);
+      expect(engine.nodes.every(node => node.radius === radius)).toBe(true);
+      expect(engine.nodes.filter(node => node.definition.project)).toHaveLength(8);
+    }
+  });
+  it('strengthens both proximity and velocity response without changing damping, then settles', () => {
+    const engine = new NetworkSimulation();
+    engine.resize(1280, 600, true);
+    const node = engine.nodes[5];
+    engine.pointer = { x: node.x - 60, y: node.y, vx: 120, vy: 0, active: true };
+    engine.step(50, 0.05);
+    const falloff = (1 - 60 / config.pointerRadius) ** 2;
+    const factor = smoothFactor(config.pointerSmoothing, 0.05);
+    const previousProximity = 20 * 0.62 * falloff;
+    const previousVelocity = 120 * 0.02 * 0.62 * falloff;
+    const proximity = config.pointerMaxOffset * config.mouseInfluence * falloff;
+    const velocity = 120 * config.pointerVelocityInfluence * config.mouseInfluence * falloff;
+    expect(proximity).toBeGreaterThan(previousProximity);
+    expect(velocity).toBeGreaterThan(previousVelocity);
+    expect(node.pointerOffset.x).toBeCloseTo((proximity + velocity) * factor);
+    simulate(engine, 2);
+    expect(node.pointerOffset.x).toBeLessThan(config.mouseInfluence * (config.pointerMaxOffset + config.pointerMaxVelocityOffset));
+    engine.pointer.active = false;
+    simulate(engine, 4);
+    expect(Math.abs(node.pointerOffset.x)).toBeLessThan(0.01);
+    expect(Math.hypot(node.x - node.base.x, node.y - node.base.y)).toBeLessThan(12);
+  });
+  it('softens direct contact so high pointer velocity cannot push a centered click away', () => {
+    const engine = new NetworkSimulation();
+    engine.resize(1280, 600, true);
+    const node = engine.nodes[5];
+    engine.pointer = { x: node.x, y: node.y, vx: 10000, vy: 10000, active: true };
+    engine.step(50, 0.05);
+    expect(node.pointerOffset).toEqual({ x: 0, y: 0 });
+    expect(Math.hypot(node.x - node.base.x, node.y - node.base.y)).toBeLessThan(node.radius);
+  });
   it('moves every neuron during idle and remains bounded over time', () => {
     const engine = new NetworkSimulation();
     engine.resize(1280, 600, true);

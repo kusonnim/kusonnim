@@ -41,7 +41,7 @@ export type Gesture = {
   nodeId: string | null;
   started: number;
   origin: Point;
-  panOrigin: Point;
+  lastPoint: Point;
   moved: boolean;
 };
 
