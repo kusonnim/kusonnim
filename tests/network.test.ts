@@ -20,21 +20,22 @@ describe('fixed feed-forward network', () => {
     }
   });
 
-  it('preserves all nine existing assignments, adds My Fan at 1/2, and keeps ordinary terminals', () => {
+  it('preserves all ten existing assignments, adds Clack at 1/5, and keeps ordinary terminals', () => {
     const assignments = Object.fromEntries(network.neurons.filter(node => node.project).map(node => [node.project!.id, [node.layer, node.row]]));
     expect(assignments).toEqual({
       'program-roulette': [1, 4], 'chararak-pdf': [2, 2], 'chararak-read': [2, 4],
       'rsvp-reader': [2, 5], 'just-in-case': [3, 1], 'tilt-sweeper': [3, 2],
       'burn-word': [3, 3], 'autumn-string': [4, 2], 'tikcat': [4, 4],
       'my-fan': [1, 2],
+      'clack': [1, 5],
     });
-    expect(network.neurons.filter(node => node.project)).toHaveLength(10);
-    expect(network.neurons.filter(node => !node.project)).toHaveLength(12);
+    expect(network.neurons.filter(node => node.project)).toHaveLength(11);
+    expect(network.neurons.filter(node => !node.project)).toHaveLength(11);
     expect(network.neurons.filter(node => node.layer === 0 || node.layer === 5).every(node => !node.project)).toBe(true);
   });
 
-  it('preserves the exact URLs of all nine existing projects', () => {
-    const urls = Object.fromEntries(projects.filter(project => project.id !== 'my-fan').map(project => [project.id, project.url]));
+  it('preserves the exact URLs of all ten existing projects', () => {
+    const urls = Object.fromEntries(projects.filter(project => project.id !== 'clack').map(project => [project.id, project.url]));
     expect(urls).toEqual({
       'rsvp-reader': 'https://kusonnim.github.io/RSVP_Reader/',
       'tilt-sweeper': 'https://kusonnim.github.io/tiltSweeper/',
@@ -45,6 +46,7 @@ describe('fixed feed-forward network', () => {
       'autumn-string': 'https://autumn-string.vercel.app/',
       'program-roulette': 'https://program-roulette.vercel.app/',
       'tikcat': 'https://tikcat.vercel.app/',
+      'my-fan': 'https://my-fan-two.vercel.app/',
     });
   });
 
@@ -60,21 +62,27 @@ describe('fixed feed-forward network', () => {
     });
   });
 
-  it('changes only the 1/2 project assignment and leaves every neuron position and connection unchanged', () => {
-    const original = createNetwork(projects.filter(project => project.id !== 'my-fan'));
+  it('assigns Clack to the requested neuron and static WebP preview path', () => {
+    expect(network.neurons.find(node => node.id === 'neuron-1-5')?.project).toMatchObject({
+      id: 'clack', name: 'Clack', url: 'https://clack-livid.vercel.app/', layer: 1, row: 5, preview: '/previews/clack.webp',
+    });
+  });
+
+  it('changes only the 1/5 project assignment and leaves every neuron position and connection unchanged', () => {
+    const original = createNetwork(projects.filter(project => project.id !== 'clack'));
     expect(network.edges).toEqual(original.edges);
     expect(network.neurons.map(({ id, layer, row }) => ({ id, layer, row }))).toEqual(
       original.neurons.map(({ id, layer, row }) => ({ id, layer, row })),
     );
     for (const node of original.neurons) {
-      if (node.id !== 'neuron-1-2') expect(network.neurons.find(current => current.id === node.id)).toEqual(node);
+      if (node.id !== 'neuron-1-5') expect(network.neurons.find(current => current.id === node.id)).toEqual(node);
     }
   });
 
   it('supports additions without reshuffling and rejects occupied or invalid positions', () => {
     const extra = { id: 'new-world', name: 'New World', url: 'https://example.com', preview: '/previews/new-world.webp', layer: 1, row: 1 };
     const extended = createNetwork([...projects, extra]);
-    expect(extended.neurons.filter(node => node.project)).toHaveLength(11);
+    expect(extended.neurons.filter(node => node.project)).toHaveLength(12);
     for (const project of projects) expect(extended.neurons.find(node => node.project?.id === project.id)?.project).toEqual(project);
     expect(() => createNetwork([...projects, { ...extra, layer: 2, row: 2 }])).toThrow('occupied');
     expect(() => createNetwork([{ ...extra, layer: 0 }])).toThrow('hidden');

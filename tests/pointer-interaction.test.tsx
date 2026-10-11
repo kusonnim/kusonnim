@@ -22,6 +22,7 @@ let simulation: NetworkSimulation;
 const addedProjects = [
   { id: 'neuron-4-4', name: 'TikCat', url: 'https://tikcat.vercel.app/', preview: '/previews/tikcat.webp' },
   { id: 'neuron-1-2', name: 'My Fan', url: 'https://my-fan-two.vercel.app/', preview: '/previews/my-fan.webp' },
+  { id: 'neuron-1-5', name: 'Clack', url: 'https://clack-livid.vercel.app/', preview: '/previews/clack.webp' },
 ];
 
 function Harness() {

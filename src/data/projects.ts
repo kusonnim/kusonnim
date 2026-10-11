@@ -11,4 +11,5 @@ export const projects: Project[] = [
   { id: 'program-roulette', name: 'Program Roulette', url: 'https://program-roulette.vercel.app/', layer: 1, row: 4, preview: '/previews/program-roulette.jpg', focus: { x: 0.5, y: 0.5 } },
   { id: 'tikcat', name: 'TikCat', url: 'https://tikcat.vercel.app/', layer: 4, row: 4, preview: '/previews/tikcat.webp', focus: { x: 0.5, y: 0.54 } },
   { id: 'my-fan', name: 'My Fan', url: 'https://my-fan-two.vercel.app/', layer: 1, row: 2, preview: '/previews/my-fan.webp', focus: { x: 0.98, y: 0.5 } },
+  { id: 'clack', name: 'Clack', url: 'https://clack-livid.vercel.app/', layer: 1, row: 5, preview: '/previews/clack.webp', focus: { x: 0.5, y: 0.5 } },
 ];
