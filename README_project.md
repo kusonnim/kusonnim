@@ -91,6 +91,11 @@ view was captured on October 11, 2026 and encoded as `public/previews/clack.webp
 All ten previous assignments and URLs remain unchanged, and Clack uses the
 existing hover, circular preview, navigation, and long-press charging behavior.
 
+The twelfth project, Drinking Milk, occupies hidden layer 4, row 5. Its actual
+glass-and-carton view was captured on October 13, 2026 and encoded as
+`public/previews/drinking-milk.webp`. All eleven previous assignments and URLs
+remain unchanged; the existing project-neuron interactions are reused.
+
 Replace these files with updated screenshots, or change the corresponding
 `preview` path in `src/data/projects.ts` to a WebP/PNG asset. Each project's `focus`
 uses normalized x/y values for the image's CSS `object-position`. Missing images
