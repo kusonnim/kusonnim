@@ -96,6 +96,11 @@ glass-and-carton view was captured on October 13, 2026 and encoded as
 `public/previews/drinking-milk.webp`. All eleven previous assignments and URLs
 remain unchanged; the existing project-neuron interactions are reused.
 
+The thirteenth project, Wajangchang, occupies hidden layer 3, row 5. Its actual
+cat-paw-and-tipping-dishes interaction was captured on October 29, 2026 and
+encoded as `public/previews/wajangchang.webp`. All twelve prior assignments and
+URLs remain unchanged; existing project-neuron interactions are reused.
+
 Replace these files with updated screenshots, or change the corresponding
 `preview` path in `src/data/projects.ts` to a WebP/PNG asset. Each project's `focus`
 uses normalized x/y values for the image's CSS `object-position`. Missing images

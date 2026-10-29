@@ -24,6 +24,7 @@ const addedProjects = [
   { id: 'neuron-1-2', name: 'My Fan', url: 'https://my-fan-two.vercel.app/', preview: '/previews/my-fan.webp' },
   { id: 'neuron-1-5', name: 'Clack', url: 'https://clack-livid.vercel.app/', preview: '/previews/clack.webp' },
   { id: 'neuron-4-5', name: 'Drinking Milk', url: 'https://drinking-milk.vercel.app/', preview: '/previews/drinking-milk.webp' },
+  { id: 'neuron-3-5', name: 'Wajangchang', url: 'https://wajangchang-kappa.vercel.app/', preview: '/previews/wajangchang.webp' },
 ];
 
 function Harness() {
